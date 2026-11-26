@@ -57,12 +57,12 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'WEATHER',
     icon: CloudSun,
     layers: [
-      { key: 'live_clouds', label: 'Облачность', description: 'NOAA satellites · lit in 3D · hourly', dataKey: '' },
-      { key: 'wind', label: 'Ветер', description: 'NOAA GFS · surface wind · 6-hourly', dataKey: '' },
-      { key: 'wind_controls', label: 'Управление временем', description: '3 days back · 5 ahead', dataKey: '', parent: 'wind' },
-      { key: 'wind_particles', label: 'Частицы', description: 'The classic look · coloured by speed', dataKey: '', parent: 'wind' },
-      { key: 'rain', label: 'Осадки', description: 'RainViewer radar · every 10 min', dataKey: '' },
-      { key: 'rain_controls', label: 'Управление временем', description: 'Last 2 hours · loop', dataKey: '', parent: 'rain' },
+      { key: 'live_clouds', label: 'Облачность', description: 'Спутники NOAA · объёмные облака · каждый час', dataKey: '' },
+      { key: 'wind', label: 'Ветер', description: 'NOAA GFS · ветер у поверхности · каждые 6 ч', dataKey: '' },
+      { key: 'wind_controls', label: 'Управление временем', description: '3 дня назад · 5 дней вперёд', dataKey: '', parent: 'wind' },
+      { key: 'wind_particles', label: 'Частицы', description: 'Частицы окрашены по скорости ветра', dataKey: '', parent: 'wind' },
+      { key: 'rain', label: 'Осадки', description: 'Радар RainViewer · каждые 10 мин', dataKey: '' },
+      { key: 'rain_controls', label: 'Управление временем', description: 'Последние 2 часа · повтор', dataKey: '', parent: 'rain' },
     ],
   },
   {
@@ -90,7 +90,7 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'GROUND TRANSIT',
     icon: Bus,
     layers: [
-      { key: 'transit', label: 'Общественный транспорт', description: 'Operator GPS feeds · every 20 s', dataKey: '' },
+      { key: 'transit', label: 'Общественный транспорт', description: 'GPS-данные перевозчиков · каждые 20 с', dataKey: '' },
     ],
   },
   {
@@ -142,8 +142,8 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     fullLabel: 'NETWORK INTEL',
     icon: Network,
     layers: [
-      { key: 'malware', label: 'Вредоносное ПО', description: 'C2 servers · arcs join a family', dataKey: 'malware_threats' },
-      { key: 'cyber_attacks', label: 'Серверы C2 ботнетов', description: 'Feodo blocklist · researcher reports', dataKey: 'cyber_attacks' },
+      { key: 'malware', label: 'Вредоносное ПО', description: 'C2-серверы · связи внутри группировки', dataKey: 'malware_threats' },
+      { key: 'cyber_attacks', label: 'Серверы C2 ботнетов', description: 'Чёрный список Feodo · отчёты исследователей', dataKey: 'cyber_attacks' },
     ],
   },
   {
@@ -156,13 +156,13 @@ const LAYER_GROUPS: LayerGroupDef[] = [
     ],
   },
   {
-    label: 'DISPLAY',
-    fullLabel: 'DISPLAY',
+    label: 'ОТОБРАЖЕНИЕ',
+    fullLabel: 'ОТОБРАЖЕНИЕ',
     icon: Sun,
     layers: [
-      { key: 'day_night', label: 'Day / Night Cycle', dataKey: '' },
-      { key: 'terrain_3d', label: '3D Buildings', description: 'City detail · zoom 14.5+', dataKey: '' },
-      { key: 'terrain_elevation', label: '3D Terrain', description: 'Mountains · zoom 10+', dataKey: '' },
+      { key: 'day_night', label: 'Смена дня и ночи', dataKey: '' },
+      { key: 'terrain_3d', label: '3D-здания', description: 'Здания города · масштаб от 14,5', dataKey: '' },
+      { key: 'terrain_elevation', label: '3D-рельеф', description: 'Горы · масштаб от 10', dataKey: '' },
     ],
   },
 ];
@@ -239,11 +239,11 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   };
   const terrainDetails = activeLayers.terrain_elevation ? (
     <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[10px] text-white/60">
-      <p role="status">{terrainStatus === 'idle' ? `Terrain at zoom ${TERRAIN_MIN_ZOOM}+ · zoom in` : terrainStatus === 'waiting' ? 'Terrain starts when you stop moving' : terrainStatus === 'loading' ? 'Loading nearby terrain…' : terrainStatus === 'error' ? 'Terrain unavailable; the map is still usable.' : 'Terrain on'}</p>
-      {terrainStatus === 'idle' && <button type="button" onClick={onTerrainFocus} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Zoom to terrain</button>}
-      {terrainStatus === 'error' && <button type="button" onClick={onTerrainRetry} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Retry terrain</button>}
-      <p className="mt-2 text-white/35">Nearby detail only · cached tiles</p>
-      <a className="mt-1 inline-block underline underline-offset-2" href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener noreferrer">Terrain credits</a>
+      <p role="status">{terrainStatus === 'idle' ? `Рельеф при масштабе ${TERRAIN_MIN_ZOOM}+ · приблизьте карту` : terrainStatus === 'waiting' ? 'Рельеф загрузится после остановки карты' : terrainStatus === 'loading' ? 'Загружается ближайший рельеф…' : terrainStatus === 'error' ? 'Рельеф недоступен; карта продолжает работать.' : 'Рельеф включён'}</p>
+      {terrainStatus === 'idle' && <button type="button" onClick={onTerrainFocus} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Приблизить к рельефу</button>}
+      {terrainStatus === 'error' && <button type="button" onClick={onTerrainRetry} className="mt-2 min-h-8 rounded border border-white/15 px-2 text-[var(--gold-primary)] hover:bg-white/10">Повторить загрузку рельефа</button>}
+      <p className="mt-2 text-white/35">Детализация поблизости · кэшированные тайлы</p>
+      <a className="mt-1 inline-block underline underline-offset-2" href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noopener noreferrer">Источники данных рельефа</a>
     </div>
   ) : null;
 
@@ -319,14 +319,14 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                   </button>
                 );
               })}
-              {group.label === 'DISPLAY' && terrainDetails}
+              {group.label === 'ОТОБРАЖЕНИЕ' && terrainDetails}
             </div>
           </div>
         ))}
 
         {/* MOBILE STYLE STUDIO */}
         <div className="flex items-center justify-between mt-2 pt-3 border-t border-white/[0.06] px-1">
-          <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Style Studio</span>
+          <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Студия стилей</span>
           <button
             onClick={() => setStudioOpen(o => !o)}
             aria-pressed={studioOpen}
@@ -346,7 +346,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         {/* MOBILE GHOST TOGGLE */}
         {setTheme && (
           <div className="flex items-center justify-between pt-3 border-t border-white/[0.06] px-1">
-            <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Ghost Protocol</span>
+            <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Призрачный режим</span>
             <button
               onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
@@ -402,7 +402,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
               <button
                 onClick={() => setPinnedGroup(isPinned ? null : group.label)}
                 aria-expanded={isOpen}
-                aria-label={`${group.fullLabel}${activeCount ? ` — ${activeCount} active` : ''}`}
+                aria-label={`${group.fullLabel}${activeCount ? ` — ${activeCount} активно` : ''}`}
                 title={group.fullLabel}
                 className="relative w-10 h-10 flex items-center justify-center cursor-pointer rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
                 style={{
@@ -474,7 +474,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                       {isPinned && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setPinnedGroup(null); }}
-                          aria-label="Close"
+                          aria-label="Закрыть"
                           className="px-1.5 py-0.5 rounded text-[10px] font-mono text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                         >
                           ✕
@@ -493,7 +493,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             onClick={() => toggle(layer.key)}
                             aria-pressed={!!isLayerActive}
                             aria-label={layer.label}
-                            title={dormant ? 'Turn the layer above on to use this' : undefined}
+                            title={dormant ? 'Включите основной слой для использования' : undefined}
                             className={`relative w-full flex items-center gap-3 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
                           >
                             {layer.parent && <SubLayerStem />}
@@ -510,7 +510,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                           </button>
                         );
                       })}
-                      {group.label === 'DISPLAY' && terrainDetails}
+                      {group.label === 'ОТОБРАЖЕНИЕ' && terrainDetails}
                     </div>
                   </motion.div>
                 )}
@@ -529,7 +529,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
         aria-pressed={studioOpen}
         className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-500 cursor-pointer"
         style={{ background: studioOpen ? 'var(--hover-accent)' : 'transparent' }}
-        title="Style Studio"
+        title="Студия стилей"
       >
         <SlidersHorizontal
           className="transition-all duration-500"
@@ -553,7 +553,7 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
           style={{
             background: theme === 'ghost' ? 'rgba(179, 136, 255, 0.1)' : 'transparent',
           }}
-          title="Ghost Protocol"
+          title="Призрачный режим"
         >
           <Ghost
             className="transition-all duration-500"
