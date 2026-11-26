@@ -473,11 +473,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         const sourceLayer = layer['source-layer'];
         if (!sourceLayer || !['place', 'water_name', 'transportation_name', 'mountain_peak'].includes(sourceLayer)) continue;
         const original = layer.layout?.['text-field'];
-        if (!original) continue;
+        if (typeof original !== 'string' && !Array.isArray(original)) continue;
         try {
           map.setLayoutProperty(layer.id, 'text-field', [
             'coalesce', ['get', 'name:ru'], ['get', 'name_ru'],
-            ['get', 'name'], original
+            ['get', 'name'], ['get', 'name:en'], original
           ]);
         } catch (error) {
           console.warn('[OSIRIS] Geographic label localization skipped:', layer.id, error);
