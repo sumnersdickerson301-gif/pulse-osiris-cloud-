@@ -449,6 +449,19 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
     }
     if (!map) return;
+    const bootMap = map;
+    let initialLoadComplete = false;
+    let fallbackAttempted = false;
+    const fallbackTimer = window.setTimeout(() => {
+      if (initialLoadComplete || fallbackAttempted) return;
+      fallbackAttempted = true;
+      console.warn('[OSIRIS] Basemap startup timeout; trying Liberty fallback');
+      bootMap.setStyle('https://tiles.openfreemap.org/styles/liberty');
+    }, 15000);
+    bootMap.once('load', () => {
+      initialLoadComplete = true;
+      window.clearTimeout(fallbackTimer);
+    });
 
     map.on('load', () => {
       mapRef.current = map;
@@ -1856,6 +1869,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     return () => {
       sizeToContainer.disconnect();
       cancelAnimationFrame(hoverFrame);
+      window.clearTimeout(fallbackTimer);
       map.remove();
       mapRef.current = null;
     };
