@@ -137,7 +137,13 @@ export function findCoords(text: string): { coords: [number, number]; anchor: st
 /** The newest posts inside the live window, newest last as Telegram orders them. */
 export function recentPosts(posts: TelegramPost[], now = Date.now()): TelegramPost[] {
   return posts
-    .filter(p => now - Date.parse(p.publishedAt) <= MAX_POST_AGE_MS)
+    .filter(p => {
+      const published = Date.parse(p.publishedAt);
+      const age = now - published;
+      // Refuse undated items and timestamps more than five minutes ahead:
+      // clock-skewed posts must not appear as perpetually live alerts.
+      return Number.isFinite(published) && age >= -5 * 60_000 && age <= MAX_POST_AGE_MS;
+    })
     .slice(-POSTS_PER_CHANNEL);
 }
 
