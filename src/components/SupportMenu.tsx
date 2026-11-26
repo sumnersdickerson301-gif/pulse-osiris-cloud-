@@ -13,14 +13,14 @@ const OPTIONS = [
   {
     href: 'https://ko-fi.com/M8D41ZYW4Z',
     Icon: Coffee,
-    label: 'SUPPORT ON KO-FI',
-    detail: 'Tip once or monthly',
+    label: 'ПОДДЕРЖАТЬ НА KO-FI',
+    detail: 'Разово или ежемесячно',
     color: 'var(--gold-primary)',
   },
   {
     href: 'https://shop.osirisai.live/',
     Icon: ShoppingBag,
-    label: 'BUY MERCH',
+    label: 'МЕРЧ OSIRIS',
     detail: 'shop.osirisai.live',
     color: 'var(--cyan-primary)',
   },
@@ -63,11 +63,11 @@ export default function SupportMenu({ compact = false }: { compact?: boolean }) 
         aria-expanded={open}
         aria-controls={menuId}
         className={`glass-panel flex items-center gap-1.5 text-[9px] font-mono tracking-widest hover:opacity-80 transition-opacity border-[var(--gold-primary)]/40 bg-[var(--gold-primary)]/10 ${
-          compact ? 'px-2 py-1' : 'px-3 py-1.5 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
+          compact ? 'px-2 py-1 tracking-normal' : 'px-3 py-1.5 shadow-[0_0_10px_rgba(255,215,0,0.1)]'
         }`}
       >
         <div className={`${compact ? 'w-1 h-1' : 'w-1.5 h-1.5'} rounded-full bg-[var(--gold-primary)] animate-osiris-pulse`} />
-        <span className="text-[var(--gold-primary)] font-bold">SUPPORT</span>
+        <span className="text-[var(--gold-primary)] font-bold">ПОДДЕРЖАТЬ</span>
         <ChevronDown
           className={`w-2.5 h-2.5 text-[var(--gold-primary)] transition-transform ${open ? 'rotate-180' : ''}`}
           aria-hidden
