@@ -479,6 +479,13 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
             'coalesce', ['get', 'name:ru'], ['get', 'name_ru'],
             ['get', 'name'], ['get', 'name:en'], original
           ]);
+          // Keep Russian place names legible against the dark basemap and markers.
+          if (sourceLayer === 'place') {
+            map.setPaintProperty(layer.id, 'text-color', '#E5ECF4');
+            map.setPaintProperty(layer.id, 'text-halo-color', '#070D16');
+            map.setPaintProperty(layer.id, 'text-halo-width', 1.4);
+            map.setPaintProperty(layer.id, 'text-halo-blur', 0.4);
+          }
         } catch (error) {
           console.warn('[OSIRIS] Geographic label localization skipped:', layer.id, error);
         }
