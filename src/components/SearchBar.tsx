@@ -98,7 +98,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
   }, [onClose, embedded]);
 
   const typing = value.trim().length > 0;
-  const you: Hit = { label: 'Your location', context: locateNote || 'Fly to where you are', lat: 0, lng: 0, kind: 'current', zoom: 14 };
+  const you: Hit = { label: 'Ваше местоположение', context: locateNote || 'Перейти к вашему местоположению', lat: 0, lng: 0, kind: 'current', zoom: 14 };
   const items: Hit[] = typing ? results : [you, ...recent.map(r => ({ ...r, zoom: ZOOM_BY_KIND[r.kind ?? ''] ?? 13 }))];
   const active = Math.min(selected, Math.max(0, items.length - 1));
 
@@ -111,7 +111,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
     if (coords) {
       abortRef.current?.abort();
       setLoading(false);
-      setResults([{ label: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`, context: 'Coordinates', ...coords, kind: 'coordinate', zoom: 15 }]);
+      setResults([{ label: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`, context: 'Координаты', ...coords, kind: 'coordinate', zoom: 15 }]);
       setAnswered(q);
       return;
     }
@@ -217,7 +217,7 @@ export default function SearchBar({ onLocate, center = null, onClose, onDirectio
           value={value}
           onChange={e => search(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search places, addresses or coordinates"
+          placeholder="Поиск мест, адресов или координат"
           aria-label="Search places"
           role="combobox"
           aria-expanded={items.length > 0}
