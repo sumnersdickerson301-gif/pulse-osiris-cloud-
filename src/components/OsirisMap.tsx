@@ -355,7 +355,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         if (!isSpinning) return;
         
         // Only spin if the user is not actively dragging or zooming the map
-        if (!map.isMoving() && !map.isZooming()) {
+        if (!document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && !map.isMoving() && !map.isZooming()) {
           const dt = time - lastTime;
           const center = map.getCenter();
           // Adjust spin speed: 0.5 degrees per second
@@ -2219,6 +2219,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     let drawing = false;
 
     const tick = () => {
+      if (document.hidden) return;
       const now = Date.now();
       const beacons = arrivalBeacons(data.malware_threats ?? [], now);
 
@@ -2243,7 +2244,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     };
 
     tick();
-    const timer = setInterval(tick, 200);
+    const timer = setInterval(tick, window.matchMedia('(pointer: coarse)').matches ? 400 : 200);
     return () => { clearInterval(timer); setGeo('malware-new', []); };
   }, [mapReady, data.malware_threats, activeLayers.malware, setGeo]);
 
@@ -2443,13 +2444,14 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     if (!mapReady || !mapRef.current || !activeLayers.alert_pins) return;
     const map = mapRef.current;
     const tick = () => {
+      if (document.hidden) return;
       try {
         map.setPaintProperty('alert-pin-pulse', 'circle-radius', 9 + Math.sin(Date.now() / 260) * 3.5);
         map.setPaintProperty('alert-pin-pulse', 'circle-stroke-opacity', 0.55 + Math.sin(Date.now() / 260) * 0.25);
       } catch { /* style not settled yet */ }
     };
     tick();
-    const timer = setInterval(tick, 200);
+    const timer = setInterval(tick, window.matchMedia('(pointer: coarse)').matches ? 400 : 200);
     return () => clearInterval(timer);
   }, [mapReady, activeLayers.alert_pins]);
 
@@ -3151,10 +3153,14 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!mapReady || !mapRef.current || !userLocation) return;
     const map = mapRef.current;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     let raf = 0;
+    let lastPaint = 0;
+    const minFrameMs = window.matchMedia('(pointer: coarse)').matches ? 50 : 32;
     const started = performance.now();
     const tick = (now: number) => {
-      if (map.getLayer('user-dot-pulse')) {
+      if (!document.hidden && now - lastPaint >= minFrameMs && map.getLayer('user-dot-pulse')) {
+        lastPaint = now;
         const t = ((now - started) % 2000) / 2000;
         map.setPaintProperty('user-dot-pulse', 'circle-radius', 8 + t * 22);
         map.setPaintProperty('user-dot-pulse', 'circle-opacity', 0.35 * (1 - t));
