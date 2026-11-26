@@ -1818,12 +1818,12 @@ export default function Dashboard() {
           </svg>
           <div className="flex flex-col items-start gap-0.5">
             <h1 className="text-lg md:text-xl font-bold tracking-[0.4em] text-[#D4AF37] font-mono">OSIRIS</h1>
-            <span className="text-[9px] md:text-[10px] font-mono tracking-[0.2em] opacity-80 uppercase text-[#D4AF37]">РАЗВЕДКА ПО ОТКРЫТЫМ ИСТОЧНИКАМ</span>
+            <span className="text-[9px] md:text-[10px] font-mono tracking-[0.06em] md:tracking-[0.2em] opacity-90 uppercase text-[#D4AF37]">РАЗВЕДКА ПО ОТКРЫТЫМ ИСТОЧНИКАМ</span>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-1.5 pl-[44px] min-w-0 pr-4">
-          <span className="text-[9px] md:text-[9px] text-[var(--text-muted)] font-mono tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-40 truncate">
-            ГЛОБАЛЬНЫЙ МОНИТОРИНГ В РЕАЛЬНОМ ВРЕМЕНИ <span className="hidden md:inline">· АВИАЦИЯ · СУДА · СПУТНИКИ · КАМЕРЫ · ПОГОДА · КИБЕРУГРОЗЫ</span>
+          <span className="text-[9px] md:text-[9px] text-[var(--text-muted)] font-mono tracking-[0.06em] md:tracking-[0.3em] uppercase opacity-80 whitespace-normal md:truncate">
+            {isMobile ? "ГЛОБАЛЬНЫЙ МОНИТОРИНГ · LIVE" : "ГЛОБАЛЬНЫЙ МОНИТОРИНГ В РЕАЛЬНОМ ВРЕМЕНИ"} <span className="hidden md:inline">· АВИАЦИЯ · СУДА · СПУТНИКИ · КАМЕРЫ · ПОГОДА · КИБЕРУГРОЗЫ</span>
           </span>
         </div>
       </motion.div>
