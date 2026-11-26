@@ -72,6 +72,16 @@ describe('recentPosts', () => {
     expect(recentPosts(posts, now).map(p => p.id)).toEqual(['a/2', 'a/3']);
   });
 
+  it('rejects invalid and far-future timestamps without losing recent reports', () => {
+    const posts = [
+      post('a/1', 'Bad date', 'not-a-date'),
+      post('a/2', 'From the future', '2026-09-17T12:10:00Z'),
+      post('a/3', 'Small source clock skew', '2026-09-17T12:03:00Z'),
+      post('a/4', 'Just now', '2026-09-17T11:59:00Z'),
+    ];
+    expect(recentPosts(posts, now).map(p => p.id)).toEqual(['a/3', 'a/4']);
+  });
+
   it('keeps only the newest posts per channel', () => {
     const posts = Array.from({ length: 12 }, (_, i) => post(`a/${i}`, `Post ${i}`, new Date(now - (12 - i) * 60_000).toISOString()));
     const kept = recentPosts(posts, now);
