@@ -519,7 +519,9 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       createDot(map, 'dot-cctv', cameraColor, 10);
 
       const sources = ['flights','military','jets','private-fl','satellites','earthquakes','gdelt','day-night','cctv','fires','weather','infrastructure','maritime','maritime-choke','maritime-ships','live-news','conflict-zones', 'war-alerts-targets', 'war-alerts-lines', 'balloons', 'radiation', 'ip-sweep-devices', 'ip-sweep-pulse', 'ip-sweep-connections', 'scan-targets', 'sdk-entities', 'sdk-links', 'malware-nodes', 'malware-new', 'cyber-heads', 'gdelt-events', 'cf-outages', 'cf-attacks', 'alert-pins'];
-      sources.forEach(s => map.addSource(s, { type: 'geojson', data: EMPTY_FC }));
+      sources.forEach(s => map.addSource(s, s === 'cctv'
+        ? { type: 'geojson', data: EMPTY_FC, cluster: true, clusterMaxZoom: 10, clusterRadius: 44 }
+        : { type: 'geojson', data: EMPTY_FC }));
 
       // ── FLIGHT ROUTE VISUALIZATION SOURCES & LAYERS ──
 
@@ -581,21 +583,38 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }});
 
       // CCTV — outer glow ring (black/white depending on theme)
-      map.addLayer({ id: 'cctv-glow', type: 'circle', source: 'cctv', paint: {
+      map.addLayer({ id: 'cctv-glow', type: 'circle', source: 'cctv', filter: ['!', ['has', 'point_count']], paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,5, 5,8, 10,14, 14,20],
         'circle-color': '#000000', 'circle-opacity': 0.35, 'circle-blur': 1,
       }});
       // CCTV — main dot
-      map.addLayer({ id: 'cctv-dots', type: 'circle', source: 'cctv', paint: {
+      map.addLayer({ id: 'cctv-dots', type: 'circle', source: 'cctv', filter: ['!', ['has', 'point_count']], paint: {
         'circle-radius': ['interpolate',['linear'],['zoom'], 1,3, 5,5, 10,8, 14,12],
         'circle-color': cameraColor, 'circle-opacity': 0.9,
         'circle-stroke-width': 2.5, 'circle-stroke-color': '#000000', 'circle-stroke-opacity': 0.9,
       }});
       // CCTV — labels at zoom 10+
-      map.addLayer({ id: 'cctv-label', type: 'symbol', source: 'cctv', minzoom: 10, layout: {
+      map.addLayer({ id: 'cctv-label', type: 'symbol', source: 'cctv', minzoom: 10, filter: ['!', ['has', 'point_count']], layout: {
         'text-field': ['get','name'], 'text-size': 9, 'text-font': ['Noto Sans Regular'],
         'text-offset': [0, 1.8], 'text-max-width': 12, 'text-allow-overlap': false,
       }, paint: { 'text-color': cameraColor, 'text-halo-color': '#000000', 'text-halo-width': 1.5, 'text-opacity': 0.8 }});
+
+      // Clustered cameras reduce overdraw on mobile at low zoom.
+      map.addLayer({ id: 'cctv-clusters', type: 'circle', source: 'cctv',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': cameraColor,
+          'circle-radius': ['step', ['get', 'point_count'], 12, 20, 16, 100, 21, 500, 26],
+          'circle-opacity': 0.82,
+          'circle-stroke-color': '#071014',
+          'circle-stroke-width': 2,
+        },
+      });
+      map.addLayer({ id: 'cctv-cluster-count', type: 'symbol', source: 'cctv',
+        filter: ['has', 'point_count'],
+        layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Noto Sans Bold'], 'text-size': 11 },
+        paint: { 'text-color': '#061310' },
+      });
 
       // GDELT
 
@@ -1173,6 +1192,21 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       });
       map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+    });
+
+    map.on('click', 'cctv-clusters', async e => {
+      const feature = e.features?.[0];
+      if (!feature || feature.geometry.type !== 'Point') return;
+      const clusterId = feature.properties?.cluster_id as number | undefined;
+      if (clusterId == null) return;
+      const source = map.getSource('cctv') as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      try {
+        const zoom = await source.getClusterExpansionZoom(clusterId);
+        map.easeTo({ center: feature.geometry.coordinates as [number, number], zoom, duration: 600 });
+      } catch (err) {
+        console.warn('[OSIRIS] Camera cluster expansion failed:', err);
+      }
     });
 
     // ── CCTV (opens CameraViewer panel) ──
@@ -2488,7 +2522,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     setVis(['fl-private'], activeLayers.private);
     setVis(['fl-jets'], activeLayers.jets);
     setVis(['fl-military'], activeLayers.military);
-    setVis(['cctv-glow','cctv-dots','cctv-label'], activeLayers.cctv);
+    setVis(['cctv-glow','cctv-dots','cctv-label','cctv-clusters','cctv-cluster-count'], activeLayers.cctv);
     setVis(['fires-heat'], activeLayers.fires);
     setVis(['weather-glow','weather-dots','weather-label'], activeLayers.weather);
     setVis(['infra-glow','infra-dots','infra-label'], activeLayers.infrastructure);
