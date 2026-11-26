@@ -134,14 +134,14 @@ function SecurityTable({ groups, selected, watchlist, sort, onSort, onOpen, onSt
           <tr className="text-[9px] tracking-wider text-left border-b border-[var(--border-secondary)] text-[var(--text-muted)]">
             <th scope="col" className="w-5 font-normal"><span className="sr-only">Watch</span></th>
             <SortHeader label="SECURITY" k="name" sort={sort} onSort={onSort} className="py-1.5" />
-            <th scope="col" className="font-normal text-right pr-2">LAST</th>
-            <th scope="col" className="font-normal text-right pr-2 hidden @2xl:table-cell">NET</th>
+            <th scope="col" className="font-normal text-right pr-2">ЦЕНА</th>
+            <th scope="col" className="font-normal text-right pr-2 hidden @2xl:table-cell">ИЗМ.</th>
             <SortHeader label="%CHG" k="move" sort={sort} onSort={onSort} className="text-right pr-2" />
             <SortHeader label="1M" k="month" sort={sort} onSort={onSort} className="text-right pr-1 hidden @min-[20rem]:table-cell" />
-            <th scope="col" className="font-normal text-center px-2 hidden @2xl:table-cell">DAY RANGE</th>
+            <th scope="col" className="font-normal text-center px-2 hidden @2xl:table-cell">ДИАПАЗОН ДНЯ</th>
             <th scope="col" className="font-normal text-center px-2 hidden @3xl:table-cell">52W</th>
-            <th scope="col" className="font-normal text-right pl-3 pr-2 hidden @4xl:table-cell">VOLUME</th>
-            <th scope="col" className="font-normal text-right pl-3 pr-1 hidden @3xl:table-cell">TIME</th>
+            <th scope="col" className="font-normal text-right pl-3 pr-2 hidden @4xl:table-cell">ОБЪЁМ</th>
+            <th scope="col" className="font-normal text-right pl-3 pr-1 hidden @3xl:table-cell">ВРЕМЯ</th>
           </tr>
         </thead>
         {groups.map((g, gi) => (
@@ -624,7 +624,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
           <div className="flex items-center justify-between gap-4 px-6 py-3.5 border-b border-[var(--border-secondary)] bg-[#111] shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <BarChart3 className="w-5 h-5 shrink-0" style={{ color: T.accent }} />
-              <span className="hud-text text-[16px] text-[var(--text-primary)] whitespace-nowrap">OSIRIS MARKETS</span>
+              <span className="hud-text text-[16px] text-[var(--text-primary)] whitespace-nowrap">РЫНКИ OSIRIS</span>
               <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '9px' }}>{allQuotes.length} INSTRUMENTS</span>
               <span className="text-[var(--text-muted)]/40">/</span>
               <span className="text-[11px] font-mono font-bold tracking-wider truncate" style={{ color: T.accent }}>
@@ -679,7 +679,7 @@ export default function MarketsPanel({ data, spaceWeather }: MarketsPanelProps) 
       <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.3)] hover:bg-[var(--hover-accent)] transition-colors shrink-0">
         <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-2 min-w-0">
           <BarChart3 className="w-3.5 h-3.5 shrink-0" style={{ color: T.accent }} />
-          <span className="hud-text text-[11px] text-[var(--text-primary)]">MARKETS</span>
+          <span className="hud-text text-[11px] text-[var(--text-primary)]">РЫНКИ</span>
           <span className="gotham-tag gotham-tag--classified truncate" style={{ fontSize: '9px', padding: '1px 5px' }}>{current ? current.code : 'HELP'}</span>
         </button>
         <div className="flex items-center gap-2.5 shrink-0">
