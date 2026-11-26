@@ -393,7 +393,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
        Martin tile server. Set NEXT_PUBLIC_BASEMAP_STYLE_URL at build time
        to select another compatible MapLibre style, including /api/basemap/style. */
     const origin = window.location.origin;
-    const styleUrl = process.env.NEXT_PUBLIC_BASEMAP_STYLE_URL?.trim() || 'https://tiles.openfreemap.org/styles/liberty';
+    const styleUrl = process.env.NEXT_PUBLIC_BASEMAP_STYLE_URL?.trim() || 'https://tiles.openfreemap.org/styles/dark';
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
