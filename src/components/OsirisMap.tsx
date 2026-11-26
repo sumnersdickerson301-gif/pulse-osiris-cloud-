@@ -466,6 +466,24 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     map.on('load', () => {
       mapRef.current = map;
 
+      // Localize only the basemap's geographic labels, before OSIRIS overlays
+      // are added. Keep the original style expression for untranslated places.
+      for (const layer of map.getStyle().layers ?? []) {
+        if (layer.type !== 'symbol') continue;
+        const sourceLayer = layer['source-layer'];
+        if (!sourceLayer || !['place', 'water_name', 'transportation_name', 'mountain_peak'].includes(sourceLayer)) continue;
+        const original = layer.layout?.['text-field'];
+        if (!original) continue;
+        try {
+          map.setLayoutProperty(layer.id, 'text-field', [
+            'coalesce', ['get', 'name:ru'], ['get', 'name_ru'],
+            ['get', 'name'], original
+          ]);
+        } catch (error) {
+          console.warn('[OSIRIS] Geographic label localization skipped:', layer.id, error);
+        }
+      }
+
       /* Measure the container once the layout has settled. The constructor
          may have read it before it had a size, and a map that starts at the
          400x300 fallback never recovers on its own. */
