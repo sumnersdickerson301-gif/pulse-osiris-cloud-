@@ -35,10 +35,11 @@ interface Headline {
   title: string;
   url: string;
   source: string;
+  published: string;
 }
 
 const RSS_FEEDS = [
-  { url: 'http://feeds.bbci.co.uk/news/world/rss.xml', source: 'BBC News' },
+  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', source: 'BBC News' },
   { url: 'https://www.aljazeera.com/xml/rss/all.xml', source: 'Al Jazeera' },
   { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', source: 'The New York Times' },
 ];
@@ -179,8 +180,18 @@ export function matchZone(text: string): (typeof KNOWN_CONFLICTS)[number] | null
   ) ?? null;
 }
 
+// Match the live-alert window used by /api/news. An unknown or invalid RSS
+// publication date must not turn an old story into a supposedly fresh report.
+export const CONFLICT_HEADLINE_WINDOW_MS = 72 * 60 * 60 * 1000;
+export function isRecentConflictHeadline(date: string, now = Date.now()): boolean {
+  const published = Date.parse(date);
+  const age = now - published;
+  return Number.isFinite(published) && age >= -5 * 60_000 && age <= CONFLICT_HEADLINE_WINDOW_MS;
+}
+
 async function fetchHeadlinesByZone(): Promise<Record<string, Headline[]>> {
   const byZone: Record<string, Headline[]> = {};
+  const now = Date.now();
 
   try {
     const https = require('https');
@@ -234,13 +245,19 @@ async function fetchHeadlinesByZone(): Promise<Record<string, Headline[]>> {
           const titleMatch = item.match(/<title>(.*?)<\/title>/i) || item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/i);
           const linkMatch = item.match(/<link>(.*?)<\/link>/i);
           const descMatch = item.match(/<description>(.*?)<\/description>/i) || item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/i);
-          
-          if (!titleMatch) return null;
+          const dateMatch = item.match(/<pubDate\b[^>]*>([\s\S]*?)<\/pubDate>/i)
+            || item.match(/<dc:date\b[^>]*>([\s\S]*?)<\/dc:date>/i);
+
+          // A source may serve an old cached RSS page. Never classify an
+          // undated, future-dated, or older-than-72h item as live.
+          const pubDate = dateMatch?.[1]?.trim() ?? '';
+          if (!titleMatch || !isRecentConflictHeadline(pubDate, now)) return null;
           return {
             title: titleMatch[1].replace(/<[^>]*>/g, '').trim(),
             link: linkMatch ? linkMatch[1] : '',
             desc: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : '',
             source,
+            published: new Date(Date.parse(pubDate)).toISOString(),
           };
         }).filter(Boolean);
       } catch (err) {
@@ -261,15 +278,20 @@ async function fetchHeadlinesByZone(): Promise<Record<string, Headline[]>> {
 
       // Several feeds carry the same story
       const title = item.title.substring(0, 150);
-      if (seen.has(title)) continue;
-      seen.add(title);
+      const dedupKey = title.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
 
-      (byZone[zone.id] ??= []).push({ title, url: item.link, source: item.source });
+      (byZone[zone.id] ??= []).push({ title, url: item.link, source: item.source, published: item.published });
     }
   } catch (e) {
     console.error('OSINT Conflict Fetch Error:', e);
   }
 
+  // Present the latest reports first without changing static zone ordering.
+  for (const headlines of Object.values(byZone)) {
+    headlines.sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
+  }
   return byZone;
 }
 
@@ -298,6 +320,8 @@ export async function GET() {
       activeWarzones: zones.filter(z => z.severity === 'war').length,
       zoneSource: 'curated',
       timestamp: new Date().toISOString(),
+      headlineWindowHours: 72,
+      latestHeadlineAt: zones.flatMap(z => z.headlines).sort((a, b) => Date.parse(b.published) - Date.parse(a.published))[0]?.published ?? null,
       sources: RSS_FEEDS.map(f => f.source),
       refreshInterval: 300, // suggest 5 min refresh
     }, {
