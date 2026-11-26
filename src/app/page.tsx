@@ -1808,6 +1808,12 @@ export default function Dashboard() {
         )}
       </motion.div>
 
+      {/* Mobile HUD legibility: shield header text from dense map markers.
+          This decorative overlay does not intercept gestures on the map. */}
+      {isMobile && !showDirections && !navSession && (
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 z-[190] h-40 pointer-events-none bg-gradient-to-b from-[#05080f]/95 via-[#05080f]/80 to-transparent" />
+      )}
+
       {/* ── HEADER ── */}
       <motion.div data-hud initial={{ opacity: 0, y: -20 }} animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }} transition={hudIn(0.15)} className={`absolute top-4 z-[200] pointer-events-none flex flex-col`} style={{ left: isMobile ? '24px' : '64px', right: '24px' }}>
         <div className="flex items-center gap-3 w-fit">
