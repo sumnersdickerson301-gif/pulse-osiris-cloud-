@@ -389,11 +389,11 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     
-    /* CARTO's Dark Matter over the OpenStreetMap world map, from our own tile
-       server through /api/basemap. CARTO, the previous source, refuses
-       osirisai.live; its cached tiles stand in when our server can't deliver. */
+    /* OpenFreeMap provides a public OpenStreetMap basemap without a private
+       Martin tile server. Set NEXT_PUBLIC_BASEMAP_STYLE_URL at build time
+       to select another compatible MapLibre style, including /api/basemap/style. */
     const origin = window.location.origin;
-    const styleUrl = `${origin}/api/basemap/style`;
+    const styleUrl = process.env.NEXT_PUBLIC_BASEMAP_STYLE_URL?.trim() || 'https://tiles.openfreemap.org/styles/liberty';
 
     const container = containerRef.current;
     maplibregl.setWorkerUrl(`/vendor/maplibre/${maplibregl.getVersion()}/maplibre-gl-worker.mjs`);
