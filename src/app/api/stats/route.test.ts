@@ -24,7 +24,7 @@ function mockFetch({ hold = false } = {}) {
     calls++;
     await gate;
     const feed = new URL(url).pathname.split('/').pop()!;
-    return new Response(JSON.stringify(feeds[feed] ?? {}), { status: 200 });
+    return Response.json(feeds[feed] ?? {});
   }));
 }
 
@@ -108,7 +108,7 @@ describe('GET /api/stats', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const feed = new URL(url).pathname.split('/').pop()!;
       if (feed === 'satellites') throw new TypeError('fetch failed');
-      return new Response(JSON.stringify(feeds[feed] ?? {}), { status: 200 });
+      return Response.json(feeds[feed] ?? {});
     }));
     at('2026-01-01T00:00:31Z');
     await request();
@@ -128,6 +128,38 @@ describe('GET /api/stats', () => {
 
     mockFetch();
     await vi.waitFor(async () => expect((await (await request()).json()).stats.sats).toBe(3));
+  });
+
+  it('ignores HTML SSO from one internal source and keeps other counts', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const feed = new URL(url).pathname.split('/').pop()!;
+      if (feed === 'cctv') return new Response('<!DOCTYPE html><title>Log in</title>', {
+        status: 200, headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+      return Response.json(feeds[feed] ?? {});
+    }));
+    const response = await request();
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.stats).toEqual({ flights: 4, sats: 3, cctv: 0, weather: 1, nuclear: 2, incidents: 4 });
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('non-JSON response from /api/cctv'));
+  });
+
+  it('preserves the last camera count if its self-fetch is intercepted by SSO', async () => {
+    mockFetch();
+    await request();
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const feed = new URL(url).pathname.split('/').pop()!;
+      if (feed === 'cctv') return new Response('<!DOCTYPE html>', {
+        status: 200, headers: { 'content-type': 'text/html' },
+      });
+      return Response.json(feeds[feed] ?? {});
+    }));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    at('2026-01-01T00:00:31Z');
+    await request();
+    await vi.waitFor(async () => expect((await (await request()).json()).stats.cctv).toBe(5));
   });
 
   it('reports a failure when there is no snapshot to fall back on', async () => {
