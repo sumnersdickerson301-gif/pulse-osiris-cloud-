@@ -15,8 +15,8 @@ import {
 interface SourceHealth {
   handle: string; name: string; lean: string; bloc: Bloc;
   kind?: 'telegram' | 'wire'; count: number; latest: string | null;
-  state?: 'ok' | 'empty' | 'degraded' | 'error' | 'blocked' | 'seeded' | 'unknown';
-  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null;
+  state?: 'ok' | 'empty' | 'degraded' | 'error' | 'blocked' | 'paused' | 'seeded' | 'unknown';
+  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null; pausedReason?: string | null;
 }
 
 /** The slice of dashboard state this panel reads. */
@@ -831,11 +831,12 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   // Reporting within the last 72h is not evidence that a source is reachable now.
   const sourcesWithReports = sources.filter(s => s.count > 0).length;
   const liveConnections = sources.filter(s => s.state === 'ok' || s.state === 'empty').length;
-  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked').length;
+  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked' || s.state === 'paused').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const fetchedAge = fetchedAt ? now - Date.parse(fetchedAt) : Number.POSITIVE_INFINITY;
   const feedDelayed = fetchedAge > 10 * 60_000;
   const sourceStatus = (source: SourceHealth) => {
+    if (source.state === 'paused') return 'ПРИОСТАНОВЛЕН · HTTP 403';
     if (source.state === 'blocked') return 'HTTP 403 · ДОСТУП ЗАПРЕЩЁН';
     if (source.state === 'degraded') return 'СБОЙ · ПОКАЗАН КЭШ';
     if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
@@ -1214,9 +1215,10 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
                     {source.lastSuccessAt && <span> · связь: {timeAgo(source.lastSuccessAt, now)}</span>}
                     {source.responseMs !== undefined && source.responseMs !== null && <span> · ответ: {source.responseMs} мс</span>}
                     {source.nextRetryAt && <span> · повтор: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>}
+                    {source.pausedReason && <span> · {source.pausedReason}, запросы на паузе</span>}
                   </div>
                 </div>
-                <span className="shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' ? '#FFB454' : source.state === 'ok' ? '#8FE4B1' : '#A8ACB5' }}>{sourceStatus(source)}</span>
+                <span className="shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' || source.state === 'paused' ? '#FFB454' : source.state === 'ok' ? '#8FE4B1' : '#A8ACB5' }}>{sourceStatus(source)}</span>
               </div>
             ))}
           </div>
