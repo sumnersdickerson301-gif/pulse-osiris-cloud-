@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Newspaper, ChevronDown, ChevronUp, ExternalLink, MapPin, Zap } from 'lucide-react';
 
@@ -22,10 +22,10 @@ function getRiskClass(score: number): string {
 }
 
 function getRiskLabel(score: number): string {
-  if (score >= 8) return 'CRITICAL';
-  if (score >= 6) return 'HIGH';
-  if (score >= 4) return 'ELEVATED';
-  return 'LOW';
+  if (score >= 8) return 'КРИТИЧЕСКИЙ';
+  if (score >= 6) return 'ВЫСОКИЙ';
+  if (score >= 4) return 'ПОВЫШЕННЫЙ';
+  return 'НИЗКИЙ';
 }
 
 function timeAgo(dateStr: string): string {
@@ -47,7 +47,48 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const [expanded, setExpanded] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [headlineLanguage, setHeadlineLanguage] = useState<'ru' | 'en'>('ru');
+  const [translatedTitles, setTranslatedTitles] = useState<Record<string, string>>({});
+  const [translationStatus, setTranslationStatus] = useState<'loading' | 'ready' | 'limited'>('ready');
+  const alreadyRequested = useRef(new Set<string>());
   const news = data.news || [];
+
+  useEffect(() => {
+    if (headlineLanguage !== 'ru') return;
+    // Translate only the headlines actually displayed (not the entire feed).
+    // Cache attempted titles across list refreshes so a failed translator does
+    // not create a retry storm from each polling cycle.
+    const pending: string[] = [];
+    for (const item of news.slice(0, 24)) {
+      const title = typeof item.title === 'string' ? item.title : '';
+      if (!title || alreadyRequested.current.has(title)) continue;
+      alreadyRequested.current.add(title);
+      pending.push(title);
+    }
+    if (pending.length === 0) return;
+    let disposed = false;
+    setTranslationStatus('loading');
+    const batches: string[][] = [];
+    for (let i = 0; i < pending.length; i += 12) batches.push(pending.slice(i, i + 12));
+    void Promise.all(batches.map(async headlines => {
+      try {
+        const response = await fetch('/api/news/translate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headlines }),
+        });
+        if (!response.ok) return { translations: {} as Record<string, string>, unavailable: true };
+        return await response.json() as { translations: Record<string, string>; unavailable: boolean };
+      } catch {
+        return { translations: {} as Record<string, string>, unavailable: true };
+      }
+    })).then(results => {
+      if (disposed) return;
+      const merged = Object.assign({}, ...results.map(result => result.translations));
+      setTranslatedTitles(previous => ({ ...previous, ...merged }));
+      setTranslationStatus(results.some(result => result.unavailable) ? 'limited' : 'ready');
+    });
+    return () => { disposed = true; };
+  }, [news, headlineLanguage]);
   const sources: Array<{
     handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
     latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null;
@@ -91,6 +132,19 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
           {expanded ? <ChevronUp className="w-3 h-3 text-[var(--text-muted)]" /> : <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />}
         </div>
       </button>
+
+      <div className="flex items-center justify-between border-t border-white/5 px-3 py-1.5 text-[9px] font-mono">
+        <span className="text-white/50">
+          {headlineLanguage === 'ru'
+            ? translationStatus === 'loading' ? 'ПЕРЕВОД ЗАГОЛОВКОВ…'
+              : translationStatus === 'limited' ? 'ПЕРЕВОД ЧАСТИЧНО НЕДОСТУПЕН' : 'АВТОПЕРЕВОД НА РУССКИЙ'
+            : 'ОРИГИНАЛЬНЫЕ ЗАГОЛОВКИ'}
+        </span>
+        <div className="flex gap-1" aria-label="Язык новостных заголовков">
+          <button type="button" onClick={() => setHeadlineLanguage('ru')} aria-pressed={headlineLanguage === 'ru'} className={headlineLanguage === 'ru' ? 'rounded bg-[#A88639]/25 px-2 py-1 text-[#EBCB79]' : 'rounded px-2 py-1 text-white/50 hover:text-white'}>РУС</button>
+          <button type="button" onClick={() => setHeadlineLanguage('en')} aria-pressed={headlineLanguage === 'en'} className={headlineLanguage === 'en' ? 'rounded bg-[#A88639]/25 px-2 py-1 text-[#EBCB79]' : 'rounded px-2 py-1 text-white/50 hover:text-white'}>ОРИГ</button>
+        </div>
+      </div>
 
       {/* Source connectivity is independent from the age of the latest report.
           Expose it by touch instead of displaying an unconditional green LIVE dot. */}
@@ -174,8 +228,8 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                     </div>
 
                     {/* Title */}
-                    <h4 className="text-[10px] text-[var(--text-primary)] leading-tight line-clamp-2">
-                      {item.title}
+                    <h4 className="text-[11px] text-[var(--text-primary)] leading-snug line-clamp-3" title={headlineLanguage === 'ru' ? item.title : undefined}>
+                      {headlineLanguage === 'ru' && translatedTitles[item.title] ? translatedTitles[item.title] : item.title}
                     </h4>
 
                     {/* Why the risk badge reads the way it does. Not an assessment:
@@ -207,7 +261,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <ExternalLink className="w-2.5 h-2.5" />
-                            OPEN SOURCE
+                            ОТКРЫТЬ ПЕРВОИСТОЧНИК
                           </a>
                         </motion.div>
                       )}
