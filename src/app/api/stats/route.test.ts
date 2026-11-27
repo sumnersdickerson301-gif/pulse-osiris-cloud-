@@ -130,6 +130,37 @@ describe('GET /api/stats', () => {
     await vi.waitFor(async () => expect((await (await request()).json()).stats.sats).toBe(3));
   });
 
+  it('forwards the incoming SSO cookie to protected same-origin API routes', async () => {
+    const observed: Array<{ url: string; options: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => {
+      observed.push({ url, options });
+      const feed = new URL(url).pathname.split('/').pop()!;
+      return Response.json(feeds[feed] ?? {});
+    }));
+    const response = await GET(new Request('http://localhost:3000/api/stats', {
+      headers: { cookie: '__vercel_sso_nonce=example; osiris_session=test' },
+    }));
+    expect(response.status).toBe(200);
+    expect(observed).toHaveLength(6);
+    for (const { url, options } of observed) {
+      expect(new URL(url).origin).toBe('http://localhost:3000');
+      expect(new Headers(options.headers).get('cookie')).toBe('__vercel_sso_nonce=example; osiris_session=test');
+      expect(options.cache).toBe('no-store');
+    }
+  });
+
+  it('never invents an authentication cookie for anonymous requests', async () => {
+    const observed: RequestInit[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => {
+      observed.push(options);
+      const feed = new URL(url).pathname.split('/').pop()!;
+      return Response.json(feeds[feed] ?? {});
+    }));
+    await request();
+    expect(observed).toHaveLength(6);
+    for (const options of observed) expect(new Headers(options.headers).has('cookie')).toBe(false);
+  });
+
   it('ignores HTML SSO from one internal source and keeps other counts', async () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
