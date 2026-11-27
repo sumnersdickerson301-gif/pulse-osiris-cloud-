@@ -50,23 +50,44 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const [headlineLanguage, setHeadlineLanguage] = useState<'ru' | 'en'>('ru');
   const [translatedTitles, setTranslatedTitles] = useState<Record<string, string>>({});
   const [translationStatus, setTranslationStatus] = useState<'loading' | 'ready' | 'limited'>('ready');
-  const alreadyRequested = useRef(new Set<string>());
+  // A refreshed news array must not discard translations already in flight.
+  // Failed requests may retry after five minutes, not on every one-minute poll.
+  const attemptedAt = useRef(new Map<string, number>());
+  const inFlightTitles = useRef(new Set<string>());
+  const isMounted = useRef(true);
+  const translationJobs = useRef(0);
   const news = data.news || [];
+  const headlineSignature = news.slice(0, 25)
+    .map((item: { title?: unknown }) => typeof item.title === 'string' ? item.title : '')
+    .join('\u001f');
+  const newsRefreshAt: string = data.news_meta?.fetchedAt ?? '';
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if (headlineLanguage !== 'ru') return;
-    // Translate only the headlines actually displayed (not the entire feed).
-    // Cache attempted titles across list refreshes so a failed translator does
-    // not create a retry storm from each polling cycle.
     const pending: string[] = [];
-    for (const item of news.slice(0, 24)) {
-      const title = typeof item.title === 'string' ? item.title : '';
-      if (!title || alreadyRequested.current.has(title)) continue;
-      alreadyRequested.current.add(title);
+    const now = Date.now();
+    for (const title of headlineSignature.split('\u001f')) {
+      if (!title || translatedTitles[title] || inFlightTitles.current.has(title)) continue;
+      const lastAttempt = attemptedAt.current.get(title);
+      if (lastAttempt !== undefined && now - lastAttempt < 5 * 60_000) continue;
+      attemptedAt.current.set(title, now);
+      inFlightTitles.current.add(title);
       pending.push(title);
     }
-    if (pending.length === 0) return;
-    let disposed = false;
+    if (!pending.length) return;
+    // Keep this retry bookkeeping bounded even after days of news updates.
+    while (attemptedAt.current.size > 350) {
+      const oldest = attemptedAt.current.keys().next().value;
+      if (!oldest) break;
+      attemptedAt.current.delete(oldest);
+    }
+
+    translationJobs.current++;
     setTranslationStatus('loading');
     const batches: string[][] = [];
     for (let i = 0; i < pending.length; i += 12) batches.push(pending.slice(i, i + 12));
@@ -75,6 +96,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
         const response = await fetch('/api/news/translate', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ headlines }),
+          signal: AbortSignal.timeout(15_000),
         });
         if (!response.ok) return { translations: {} as Record<string, string>, unavailable: true };
         return await response.json() as { translations: Record<string, string>; unavailable: boolean };
@@ -82,13 +104,19 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
         return { translations: {} as Record<string, string>, unavailable: true };
       }
     })).then(results => {
-      if (disposed) return;
+      for (const title of pending) inFlightTitles.current.delete(title);
+      translationJobs.current = Math.max(0, translationJobs.current - 1);
+      if (!isMounted.current) return;
       const merged = Object.assign({}, ...results.map(result => result.translations));
       setTranslatedTitles(previous => ({ ...previous, ...merged }));
-      setTranslationStatus(results.some(result => result.unavailable) ? 'limited' : 'ready');
+      setTranslationStatus(results.some(result => result.unavailable)
+        ? 'limited'
+        : translationJobs.current > 0 ? 'loading' : 'ready');
     });
-    return () => { disposed = true; };
-  }, [news, headlineLanguage]);
+    // `newsRefreshAt` supplies a retry opportunity after the cooldown.
+    // Deliberately do not cancel in-flight translations on news refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [headlineSignature, headlineLanguage, newsRefreshAt]);
   const sources: Array<{
     handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
     latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null; pausedReason?: string | null;
