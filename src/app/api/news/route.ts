@@ -498,7 +498,7 @@ async function buildFeed(): Promise<FeedPayload> {
  */
 async function buildNewsFromAvailableBackend(): Promise<{ body: FeedPayload; origin: 'railway' | 'local' }> {
   const railway = await loadRailwayNews();
-  if (railway) return { body: railway as FeedPayload, origin: 'railway' };
+  if (railway) return { body: railway as unknown as FeedPayload, origin: 'railway' };
   return { body: await buildFeed(), origin: 'local' };
 }
 
