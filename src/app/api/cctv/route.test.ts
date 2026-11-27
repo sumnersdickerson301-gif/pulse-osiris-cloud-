@@ -61,6 +61,39 @@ describe('CCTV partial responses', () => {
     expect(body.pendingRegions).toEqual([]);
   });
 
+  it('lets Nevada complete a valid 16-second first page', async () => {
+    vi.mocked(stealthFetch).mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 16_000));
+      return Response.json({
+        recordsTotal: 1,
+        data: [{
+          id: 9, location: 'US-95 at Main St',
+          latLng: { geography: { wellKnownText: 'POINT (-115.14 36.17)' } },
+          images: [{ imageUrl: '/map/Cctv/9' }],
+        }],
+      });
+    });
+    const pending = GET(new Request('http://localhost/api/cctv?region=nevada'));
+    await flushIO();
+    await vi.advanceTimersByTimeAsync(16_000);
+    const result = await (await pending).json();
+    expect(result.total).toBe(1);
+    expect(result.pendingRegions).toEqual([]);
+  });
+
+  it('lets New Zealand complete a 14-second NZTA XML response', async () => {
+    vi.mocked(stealthFetch).mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 14_000));
+      return new Response('<cameras><camera><id>42</id><name>SH1 Test</name><imageUrl>/image/42</imageUrl><latitude>-41.3</latitude><longitude>174.8</longitude></camera></cameras>');
+    });
+    const pending = GET(new Request('http://localhost/api/cctv?region=newzealand'));
+    await flushIO();
+    await vi.advanceTimersByTimeAsync(14_000);
+    const result = await (await pending).json();
+    expect(result.total).toBe(1);
+    expect(result.pendingRegions).toEqual([]);
+  });
+
   it('does not dispatch every region at once', async () => {
     let inFlight = 0;
     let peak = 0;
