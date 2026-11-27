@@ -16,7 +16,7 @@ interface SourceHealth {
   handle: string; name: string; lean: string; bloc: Bloc;
   kind?: 'telegram' | 'wire'; count: number; latest: string | null;
   state?: 'ok' | 'empty' | 'degraded' | 'error' | 'blocked' | 'seeded' | 'unknown';
-  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null; nextRetryAt?: string | null;
+  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null;
 }
 
 /** The slice of dashboard state this panel reads. */
@@ -830,6 +830,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   const sources: SourceHealth[] = data.news_meta?.sources ?? [];
   // Reporting within the last 72h is not evidence that a source is reachable now.
   const sourcesWithReports = sources.filter(s => s.count > 0).length;
+  const liveConnections = sources.filter(s => s.state === 'ok' || s.state === 'empty').length;
   const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const fetchedAge = fetchedAt ? now - Date.parse(fetchedAt) : Number.POSITIVE_INFINITY;
@@ -1187,7 +1188,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
               style={{ color: brokenSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}
             >
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
-              {sourcesWithReports}/{sources.length} С ПУБЛИКАЦИЯМИ (72 Ч)
+              {liveConnections}/{sources.length} ИСТОЧНИКОВ ОТВЕТИЛИ · {sourcesWithReports} С ПУБЛИКАЦИЯМИ
               {brokenSources > 0 && <span className="text-[#FFB454]">· {brokenSources} СБОЙ</span>}
               <ChevronDown className={sourceDetailsOpen ? 'w-3 h-3 rotate-180' : 'w-3 h-3'} />
             </button>
@@ -1204,13 +1205,14 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
         {sourceDetailsOpen && (
           <div id="osiris-source-health" className="max-h-48 overflow-y-auto border-t border-white/10 bg-[#0A0F17]/95 px-3 py-2 text-[10px] font-mono" role="region" aria-label="Состояние новостных источников">
             <div className="mb-2 text-white/55">Статус последнего получения данных · публикации за 72 часа</div>
-            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded') - Number(a.state === 'error' || a.state === 'degraded')).map(source => (
+            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded' || b.state === 'blocked') - Number(a.state === 'error' || a.state === 'degraded' || a.state === 'blocked')).map(source => (
               <div key={source.handle} className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 last:border-b-0">
                 <div className="min-w-0">
                   <div className="truncate text-white/85">{source.name} <span className="text-white/35">· {source.kind === 'wire' ? 'RSS' : 'Telegram'}</span></div>
                   <div className="text-white/45">
                     {source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest, now) : 'нет данных'}
                     {source.lastSuccessAt && <span> · связь: {timeAgo(source.lastSuccessAt, now)}</span>}
+                    {source.responseMs !== undefined && source.responseMs !== null && <span> · ответ: {source.responseMs} мс</span>}
                     {source.nextRetryAt && <span> · повтор: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                 </div>
