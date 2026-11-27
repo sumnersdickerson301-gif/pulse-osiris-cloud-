@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stealthFetch } from '@/lib/stealthFetch';
-import { cachedSource, isStale, peekSource, seedSource } from '@/lib/sourceCache';
+import { cachedSource, isStale, peekSource, seedSource, sourceCacheHealth } from '@/lib/sourceCache';
 import { buildPayload, clearPayload, getPayload, readSnapshot, writeSnapshot, type Payload, type RegionCameras } from '@/lib/cctv-snapshot';
 import { createPool } from '@/lib/fetch-pool';
 import { inBox, parseBox } from '@/lib/cutout';
@@ -664,6 +664,14 @@ function refreshRegion(region: string): Promise<any[]> {
 
 const ALL_REGIONS = () => Object.keys(REGION_FETCHERS);
 
+/** A genuinely empty response is not a region still loading. Initial
+ * in-flight placeholders also say "empty" but have no successful fetch.
+ */
+function settledEmptyRegion(region: string): boolean {
+  const health = sourceCacheHealth(`cctv:${region}`);
+  return health?.state === 'empty' && health.lastSuccessAt !== null;
+}
+
 /** Everything currently held, stale included — what gets written to disk. */
 function currentRegions(): RegionCameras {
   const regions: RegionCameras = {};
@@ -680,6 +688,7 @@ function rebuildPayload(): Payload | undefined {
   const regions = currentRegions();
   const held = Object.keys(regions);
   if (!held.length) return undefined;
+  const pendingRegions = ALL_REGIONS().filter(region => !regions[region] && !settledEmptyRegion(region));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cameras: any[] = [];
   const sources: Record<string, number> = {};
@@ -695,9 +704,9 @@ function rebuildPayload(): Payload | undefined {
     total: cameras.length,
     sources,
     regions: ALL_REGIONS(),
-    pendingRegions: ALL_REGIONS().filter(region => !regions[region]),
+    pendingRegions,
     timestamp: new Date().toISOString(),
-  }, cameras.length, held.length === ALL_REGIONS().length);
+  }, cameras.length, pendingRegions.length === 0);
 }
 
 const PERSIST_EVERY_MS = 60_000;
@@ -790,7 +799,9 @@ async function collectRegions(regions: string[]): Promise<{ cameras: Record<stri
     if (cached) {
       cameras[region] = cached;
       if (isStale(`cctv:${region}`)) void refreshRegion(region).catch(() => {});
-    } else {
+    } else if (!settledEmptyRegion(region) || isStale(`cctv:${region}`)) {
+      // Successful empty responses wait for their normal TTL before retrying.
+      // Errors and initial in-flight placeholders are NOT counted as success.
       missing.push(region);
     }
   }
@@ -813,7 +824,7 @@ async function collectRegions(regions: string[]): Promise<{ cameras: Record<stri
   await Promise.race([Promise.all(fetches), deadline]);
   clearTimeout(timer);
 
-  const pending = missing.filter(region => !cameras[region]);
+  const pending = missing.filter(region => !cameras[region] && !settledEmptyRegion(region));
   if (pending.length) console.warn(`[OSIRIS] cctv still filling: ${pending.join(", ")}`);
   return { cameras, pending };
 }
