@@ -70,6 +70,8 @@ const WIRE_FEEDS: (Feed & { url: string })[] = [
   { handle: 'guardian',   url: 'https://www.theguardian.com/world/rss',              name: 'The Guardian',     lean: 'British newsroom',             bloc: 'western' },
   { handle: 'aljazeera',  url: 'https://www.aljazeera.com/xml/rss/all.xml',          name: 'Al Jazeera',       lean: 'Qatari broadcaster',           bloc: 'regional' },
   { handle: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/',             name: 'Times of Israel',  lean: 'Israeli newsroom',             bloc: 'regional' },
+  // Independent Israeli newsroom: maintains regional coverage when ToI blocks cloud IPs.
+  { handle: 'jpost',       url: 'https://www.jpost.com/rss/rssfeedsfrontpage.aspx', name: 'The Jerusalem Post', lean: 'Israeli newsroom',        bloc: 'regional' },
   { handle: 'tass',       url: 'https://tass.com/rss/v2.xml',                        name: 'TASS',             lean: 'Russian state agency',         bloc: 'russian' },
   { handle: 'anadolu',    url: 'https://www.aa.com.tr/en/rss/default?cat=world',     name: 'Anadolu Agency',   lean: 'Turkish state agency',         bloc: 'regional' },
   { handle: 'scmp',       url: 'https://www.scmp.com/rss/91/feed',                   name: 'SCMP',             lean: 'Hong Kong newsroom',           bloc: 'regional' },
@@ -365,6 +367,7 @@ interface SourceHealth {
   lastSuccessAt: string | null;
   lastAttemptAt: string | null;
   lastErrorAt: string | null;
+  nextRetryAt: string | null;
 }
 
 interface FeedPayload {
@@ -404,6 +407,7 @@ async function buildFeed(): Promise<FeedPayload> {
       lastSuccessAt: iso(health?.lastSuccessAt),
       lastAttemptAt: iso(health?.lastAttemptAt),
       lastErrorAt: iso(health?.lastErrorAt),
+      nextRetryAt: iso(health?.nextRetryAt),
       };
     });
 
