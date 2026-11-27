@@ -2638,3 +2638,175 @@ path.oi-graph-in { animation: oi-edge-in 0.9s ease-out both; }
   .vision-lock, .vision-flash, .vision-chip, .vision-grow, .vision-rise { animation: none; }
   .vision-region { transition: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   OSIRIS MOBILE ACCESSIBILITY / BRIGHT CONTROL PASS
+   Bright, legible layer switches and navigation on dark map panels.
+   Visual-only: the parent buttons continue to own all interactions.
+   ══════════════════════════════════════════════════════════════════ */
+.osiris-layer-switch {
+  --switch-travel: 16px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(230, 239, 255, 0.09);
+  border: 1px solid rgba(228, 235, 250, 0.72);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 5px rgba(230, 240, 255, 0.15);
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  pointer-events: none;
+}
+.osiris-layer-switch.is-mobile {
+  --switch-travel: 21px;
+  width: 43px;
+  height: 24px;
+}
+.osiris-layer-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #E9EEF8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 4px rgba(235, 243, 255, 0.28);
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), background 180ms ease, box-shadow 180ms ease;
+}
+.osiris-layer-switch.is-mobile .osiris-layer-switch__thumb {
+  width: 18px;
+  height: 18px;
+}
+.osiris-layer-switch.active {
+  background: rgba(7, 210, 231, 0.25);
+  border-color: #36ECFB;
+  box-shadow: inset 0 0 8px rgba(0, 240, 255, 0.18), 0 0 9px rgba(0, 220, 247, 0.56);
+}
+.osiris-layer-switch.active .osiris-layer-switch__thumb {
+  transform: translateX(var(--switch-travel));
+  background: #B7FFFF;
+  box-shadow: 0 0 7px #22EFFF, 0 0 14px rgba(0, 224, 255, 0.65);
+}
+.osiris-mobile-layer-panel .osiris-mobile-group-title {
+  color: #ACB6CA;
+  border-color: rgba(255, 216, 106, 0.24);
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-row {
+  min-height: 48px;
+  border: 1px solid transparent;
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-row:hover,
+.osiris-mobile-layer-panel .osiris-mobile-layer-row:active,
+.osiris-mobile-layer-panel .osiris-mobile-layer-row:focus-visible {
+  background: rgba(255, 216, 107, 0.055);
+  border-color: rgba(255, 216, 107, 0.22);
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-row:focus-visible {
+  outline: 2px solid #FFD25B;
+  outline-offset: 1px;
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-row.is-dormant {
+  opacity: 0.73;
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-label {
+  color: #E6EBF6;
+  font-weight: 600;
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-label.is-on {
+  color: #FAFDFF;
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.15);
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-description {
+  color: #AEB9CA;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.osiris-mobile-layer-panel .osiris-mobile-layer-count {
+  color: #F0CF70;
+}
+.osiris-mobile-layer-panel .osiris-mobile-tool-btn {
+  color: #E6EBF6;
+  border: 1px solid rgba(216, 230, 255, 0.36);
+  background: rgba(235, 244, 255, 0.07);
+}
+.osiris-mobile-layer-panel .osiris-mobile-tool-btn:focus-visible {
+  outline: 2px solid #FFD25B;
+  outline-offset: 2px;
+}
+
+/* Mobile nav — brighter inactive icons, gold active tab, cyan recon tab.
+   Maintain the existing eight-button layout without horizontal scrolling. */
+.mobile-nav {
+  background: linear-gradient(180deg, transparent, rgba(3, 7, 15, 0.93) 28%);
+}
+.mobile-nav-inner {
+  min-height: 56px;
+  background: rgba(4, 12, 23, 0.96);
+  border: 1px solid rgba(246, 191, 54, 0.65);
+  border-radius: 16px;
+  box-shadow: 0 0 13px rgba(255, 201, 58, 0.14), inset 0 1px 0 rgba(255, 220, 143, 0.12);
+}
+.mobile-nav-btn {
+  position: relative;
+  min-height: 46px;
+  padding: 5px 1px 4px;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: #F4F5FD;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  text-shadow: 0 0 4px rgba(238, 244, 255, 0.36);
+  opacity: 1;
+}
+.mobile-nav-btn svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.3;
+  filter: drop-shadow(0 0 3px rgba(231, 241, 255, 0.42));
+}
+.mobile-nav-btn.active {
+  color: #FFD454;
+  background: linear-gradient(180deg, rgba(255, 203, 65, 0.23), rgba(255, 185, 29, 0.09));
+  border-color: rgba(255, 207, 79, 0.75);
+  box-shadow: 0 0 12px rgba(255, 194, 44, 0.36), inset 0 0 8px rgba(255, 194, 44, 0.2);
+  text-shadow: 0 0 7px rgba(255, 208, 73, 0.55);
+}
+.mobile-nav-btn.active svg {
+  filter: drop-shadow(0 0 5px rgba(255, 204, 49, 0.8));
+}
+.mobile-nav-btn--recon:not(.active) {
+  color: #48F0F5;
+  text-shadow: 0 0 6px rgba(52, 231, 245, 0.46);
+}
+.mobile-nav-btn--recon:not(.active) svg {
+  filter: drop-shadow(0 0 5px rgba(40, 230, 244, 0.62));
+}
+.mobile-nav-btn--recon.active {
+  color: #5EFAFF;
+  border-color: rgba(52, 236, 246, 0.76);
+  background: rgba(15, 225, 241, 0.15);
+  box-shadow: 0 0 12px rgba(22, 233, 248, 0.35), inset 0 0 9px rgba(22, 233, 248, 0.16);
+}
+.mobile-nav-btn:focus-visible {
+  outline: 2px solid #FFD454;
+  outline-offset: -2px;
+}
+.mobile-nav-btn:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 390px) {
+  .mobile-nav-btn { font-size: 7px; padding: 4px 0 3px; letter-spacing: 0; }
+  .mobile-nav-btn svg { width: 19px; height: 19px; }
+}
+@media (max-height: 500px) and (max-width: 1024px) {
+  .mobile-nav-btn { min-height: 36px; }
+  .mobile-nav-btn svg { width: 18px; height: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .osiris-layer-switch,
+  .osiris-layer-switch__thumb,
+  .mobile-nav-btn { transition: none; }
+}
