@@ -95,7 +95,8 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   }> = data.news_meta?.sources ?? [];
   const reportedSources = sources.filter(source => source.count > 0).length;
   const liveConnections = sources.filter(source => source.state === 'ok' || source.state === 'empty').length;
-  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked' || source.state === 'paused').length;
+  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked').length;
+  const pausedSources = sources.filter(source => source.state === 'paused').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
   const sourceLabel = (source: (typeof sources)[number]) => {
@@ -129,7 +130,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: !sources.length ? '#858B97' : failedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }} />
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: !sources.length ? '#858B97' : failedSources || pausedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }} />
           {expanded ? <ChevronUp className="w-3 h-3 text-[var(--text-muted)]" /> : <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />}
         </div>
       </button>
@@ -138,7 +139,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
         <span className="text-white/50">
           {headlineLanguage === 'ru'
             ? translationStatus === 'loading' ? 'ПЕРЕВОД ЗАГОЛОВКОВ…'
-              : translationStatus === 'limited' ? 'ПЕРЕВОД ЧАСТИЧНО НЕДОСТУПЕН' : 'АВТОПЕРЕВОД НА РУССКИЙ'
+              : translationStatus === 'limited' ? 'ПЕРЕВОД ЧАСТИЧНО НЕДОСТУПЕН' : 'МАШИННЫЙ ПЕРЕВОД НА РУССКИЙ'
             : 'ОРИГИНАЛЬНЫЕ ЗАГОЛОВКИ'}
         </span>
         <div className="flex gap-1" aria-label="Язык новостных заголовков">
@@ -151,9 +152,10 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
           Expose it by touch instead of displaying an unconditional green LIVE dot. */}
       <div className="border-t border-white/5 px-3 py-2 text-[10px] font-mono">
         <button type="button" className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setSourcesOpen(value => !value)} aria-expanded={sourcesOpen} aria-controls="osiris-intel-source-health">
-          <span style={{ color: failedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}>
-            {sources.length ? liveConnections + '/' + sources.length + ' ИСТОЧНИКОВ ОТВЕТИЛИ · ' + reportedSources + ' С ПУБЛИКАЦИЯМИ' : 'ОЖИДАНИЕ ДАННЫХ ОБ ИСТОЧНИКАХ'}
-            {failedSources > 0 && <span> · {failedSources} СБОЙ</span>}
+          <span style={{ color: failedSources || pausedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}>
+            {sources.length ? liveConnections + '/' + sources.length + ' ДОСТУПНО · ' + reportedSources + ' С ПУБЛИКАЦИЯМИ' : 'ОЖИДАНИЕ ДАННЫХ ОБ ИСТОЧНИКАХ'}
+            {pausedSources > 0 && <span> · {pausedSources} ПРИОСТАНОВЛЕНЫ</span>}
+            {failedSources > 0 && <span> · {failedSources} ОШИБКИ</span>}
             {feedDelayed && <span> · ДАННЫЕ ЗАДЕРЖАНЫ</span>}
           </span>
           <ChevronDown className={sourcesOpen ? 'h-3 w-3 shrink-0 rotate-180 text-white/60' : 'h-3 w-3 shrink-0 text-white/60'} />
@@ -230,7 +232,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                     </div>
 
                     {/* Title */}
-                    <h4 className="text-[11px] text-[var(--text-primary)] leading-snug line-clamp-3" title={headlineLanguage === 'ru' ? item.title : undefined}>
+                    <h4 className="text-[11px] text-[var(--text-primary)] leading-snug break-words" title={headlineLanguage === 'ru' ? item.title : undefined}>
                       {headlineLanguage === 'ru' && translatedTitles[item.title] ? translatedTitles[item.title] : item.title}
                     </h4>
 
