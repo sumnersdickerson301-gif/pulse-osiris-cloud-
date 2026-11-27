@@ -91,6 +91,15 @@ Vercel preview branch fix/openfreemap has OSIRIS_NEWS_BACKEND=railway and its
 independent of the durable archive. The current Production release is
 unaffected, and no collector worker has been deployed to Railway yet.
 
-Before using the archive for the OSIRIS UI, add a server-side proxy with an
-allowlisted URL and Bearer credential, verify integration under SSO and
-exercise failure/fallback, pagination, and restart persistence.
+A server-side proxy has been **prepared but remains disabled** at
+GET /api/history. To enable it ONLY after the worker is deployed and tested,
+configure these as sensitive Vercel environment variables for a Preview branch:
+
+    OSIRIS_HISTORY_API_URL=https://<collector-domain>.up.railway.app/
+    OSIRIS_HISTORY_API_TOKEN=<same strong secret as the worker>
+
+The proxy pins the HTTPS destination to Railway, never exposes the token,
+validates response shape, and returns 502 on worker failures. Do not set the
+variables in Production until real-data authentication, pagination, volume
+persistence and fallback have been verified. The UI does not consume this
+archive yet.
