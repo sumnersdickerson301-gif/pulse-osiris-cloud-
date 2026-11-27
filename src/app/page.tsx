@@ -159,9 +159,9 @@ function ViewSegment({ active, onClick, title, icon: Icon, label, layoutId }: {
 /* /api/news answers with its own `timestamp` and `total`; merged at the root
    they would be overwritten by the next endpoint, so the feed keeps its
    metadata under its own key. */
-const newsTransform = (d: { news?: unknown[]; sources?: unknown[]; timestamp?: string }) => ({
+const newsTransform = (d: { news?: unknown[]; sources?: unknown[]; health?: unknown; timestamp?: string }) => ({
   news: d.news,
-  news_meta: { sources: d.sources ?? [], fetchedAt: d.timestamp ?? null },
+  news_meta: { sources: d.sources ?? [], health: d.health ?? null, fetchedAt: d.timestamp ?? null },
   /* The reports that resolved to a place they name — the Live Alert Pins layer. */
   alert_pins: (d.news ?? []).filter(n => (n as { place?: unknown } | null)?.place),
 });
@@ -1075,11 +1075,26 @@ export default function Dashboard() {
       } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
     }, 5000);
 
+    // A mobile browser suspends intervals in the background. Catch up once on
+    // resume, not on every focus/visibility event, and never overlap requests.
+    let lastNewsFetchAt = Date.now();
+    let newsFetchInFlight = false;
+    const refreshNewsIfDue = async () => {
+      if (document.hidden || newsFetchInFlight || Date.now() - lastNewsFetchAt < 60_000) return;
+      lastNewsFetchAt = Date.now();
+      newsFetchInFlight = true;
+      try { await fetchEndpoint('/api/news', newsTransform); }
+      finally { newsFetchInFlight = false; }
+    };
+    const onNewsResume = () => { void refreshNewsIfDue(); };
+    document.addEventListener('visibilitychange', onNewsResume);
+    window.addEventListener('focus', onNewsResume);
+
     // Polling — OPTIMIZED intervals to minimize edge requests
     const intervals = [
       setInterval(() => fetchEndpoint(eqUrl, eqTransform, undefined, { skipWhenHidden: true }), 900000),  // 15 min (was 5)
       // 5 min: the route caches each channel for 3, so Telegram sees at most one read per channel per window however many tabs poll.
-      setInterval(() => fetchEndpoint('/api/news', newsTransform, undefined, { skipWhenHidden: true }), 300000),
+      setInterval(() => { void refreshNewsIfDue(); }, 300000),
       // 5 min: a warning that has just been issued is the point of the panel.
       setInterval(() => fetchEndpoint('/api/weather', d => ({ weather_events: d.events }), undefined, { skipWhenHidden: true }), 300000),
       setInterval(() => fetchEndpoint('/api/markets', d => ({ markets: d }), undefined, { skipWhenHidden: true }), 900000), // 15 min (was 5)
@@ -1088,6 +1103,8 @@ export default function Dashboard() {
       clearTimeout(marketTimer);
       marketRetries.forEach(clearTimeout);
       clearTimeout(spaceTimer);
+      document.removeEventListener('visibilitychange', onNewsResume);
+      window.removeEventListener('focus', onNewsResume);
       intervals.forEach(clearInterval);
     };
   }, [fetchEndpoint]);
