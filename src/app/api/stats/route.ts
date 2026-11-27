@@ -38,6 +38,32 @@ export function clearStatsSnapshot() {
   inflight = undefined;
 }
 
+/** A protected Vercel route may return an HTML login page with HTTP 200.
+ * Treat this as a failed feed, not JSON; preserve counts from healthy feeds.
+ */
+async function readStatsJson(result: PromiseSettledResult<Response>, route: string): Promise<Record<string, unknown> | null> {
+  if (result.status !== 'fulfilled') return null;
+  const response = result.value;
+  if (!response.ok) return null;
+  const mime = response.headers.get('content-type') ?? '';
+  if (mime && !/(?:application\\/json|\\+json)/i.test(mime)) {
+    console.warn('[OSIRIS] stats ignored non-JSON response from /api/' + route + ' (' + mime.slice(0, 60) + ')');
+    return null;
+  }
+  try {
+    const value: unknown = await response.json();
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  } catch {
+    console.warn('[OSIRIS] stats ignored malformed JSON from /api/' + route);
+  }
+  return null;
+}
+
+function countArray(record: Record<string, unknown> | null, key: string): number | null {
+  if (!record || !Array.isArray(record[key])) return null;
+  return (record[key] as unknown[]).length;
+}
+
 /** Counts for the feeds that answered; a feed that failed is simply absent. */
 async function computeStats(origin: string): Promise<Partial<Stats>> {
   // Fetch all internal APIs in parallel (they have their own Cache-Control TTLs)
@@ -52,39 +78,35 @@ async function computeStats(origin: string): Promise<Partial<Stats>> {
 
   const fresh: Partial<Stats> = {};
 
-  // Safely parse counts
-  if (flightsRes.status === 'fulfilled' && flightsRes.value.ok) {
-    const data = await flightsRes.value.json();
-    fresh.flights = (data.commercial_flights?.length || 0) +
-              (data.private_flights?.length || 0) +
-              (data.private_jets?.length || 0) +
-              (data.military_flights?.length || 0);
-  }
+  // A bad feed cannot spoil the counts returned by the other five.
+  const [flights, satellites, cctv, weather, infrastructure, gdelt] = await Promise.all([
+    readStatsJson(flightsRes, 'flights'),
+    readStatsJson(satsRes, 'satellites'),
+    readStatsJson(cctvRes, 'cctv'),
+    readStatsJson(weatherRes, 'weather'),
+    readStatsJson(infraRes, 'infrastructure'),
+    readStatsJson(gdeltRes, 'gdelt'),
+  ]);
 
-  if (satsRes.status === 'fulfilled' && satsRes.value.ok) {
-    const data = await satsRes.value.json();
-    fresh.sats = data.satellites?.length || 0;
+  if (flights) {
+    const fields = ['commercial_flights', 'private_flights', 'private_jets', 'military_flights'];
+    const sizes = fields.map(key => countArray(flights, key));
+    if (sizes.some(size => size !== null)) fresh.flights = sizes.reduce<number>((sum, value) => sum + (value ?? 0), 0);
   }
+  const satsCount = countArray(satellites, 'satellites');
+  if (satsCount !== null) fresh.sats = satsCount;
+  const cameraCount = countArray(cctv, 'cameras');
+  if (cameraCount !== null) fresh.cctv = cameraCount;
+  const weatherCount = countArray(weather, 'events');
+  if (weatherCount !== null) fresh.weather = weatherCount;
+  const nuclearCount = countArray(infrastructure, 'infrastructure');
+  if (nuclearCount !== null) fresh.nuclear = nuclearCount;
+  const incidentCount = countArray(gdelt, 'events');
+  if (incidentCount !== null) fresh.incidents = incidentCount;
 
-  if (cctvRes.status === 'fulfilled' && cctvRes.value.ok) {
-    const data = await cctvRes.value.json();
-    fresh.cctv = data.cameras?.length || 0;
-  }
-
-  if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
-    const data = await weatherRes.value.json();
-    fresh.weather = data.events?.length || 0;
-  }
-
-  if (infraRes.status === 'fulfilled' && infraRes.value.ok) {
-    const data = await infraRes.value.json();
-    fresh.nuclear = data.infrastructure?.length || 0;
-  }
-
-  if (gdeltRes.status === 'fulfilled' && gdeltRes.value.ok) {
-      const data = await gdeltRes.value.json();
-      fresh.incidents = data.events?.length || 0;
-  }
+  // Do not present six invented zeros as a valid new snapshot when Vercel SSO
+  // intercepted every self-fetch or every upstream returned an error.
+  if (Object.keys(fresh).length === 0) throw new Error('No valid JSON stats sources responded');
 
   return fresh;
 }
