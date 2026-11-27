@@ -127,6 +127,14 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const pausedSources = sources.filter(source => source.state === 'paused').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
+  // A working connection is not the same as newly published OSINT. Display
+  // actual article ages rather than an unconditional LIVE label.
+  const now = Date.now();
+  const articleAge = (item: { published?: string }) => now - Date.parse(item.published || '');
+  const recent3h = news.filter((item: { published?: string }) =>
+    Number.isFinite(articleAge(item)) && articleAge(item) >= 0 && articleAge(item) <= 3 * 60 * 60_000).length;
+  const recent24h = news.filter((item: { published?: string }) =>
+    Number.isFinite(articleAge(item)) && articleAge(item) >= 0 && articleAge(item) <= 24 * 60 * 60_000).length;
   const sourceLabel = (source: (typeof sources)[number]) => {
     if (source.state === 'paused') return 'ПРИОСТАНОВЛЕН · HTTP 403';
     if (source.state === 'blocked') return 'HTTP 403 · ДОСТУП ЗАПРЕЩЁН';
@@ -174,6 +182,13 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
           <button type="button" onClick={() => setHeadlineLanguage('ru')} aria-pressed={headlineLanguage === 'ru'} className={headlineLanguage === 'ru' ? 'rounded bg-[#A88639]/25 px-2 py-1 text-[#EBCB79]' : 'rounded px-2 py-1 text-white/50 hover:text-white'}>РУС</button>
           <button type="button" onClick={() => setHeadlineLanguage('en')} aria-pressed={headlineLanguage === 'en'} className={headlineLanguage === 'en' ? 'rounded bg-[#A88639]/25 px-2 py-1 text-[#EBCB79]' : 'rounded px-2 py-1 text-white/50 hover:text-white'}>ОРИГ</button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-white/10 px-3 py-1.5 text-[9px] font-mono" role="status">
+        <span className={recent24h ? 'text-[#9FDCE2]' : 'text-[#FFB454]'}>
+          СВЕЖЕСТЬ ЛЕНТЫ · {recent3h} ЗА 3 Ч · {recent24h} ЗА 24 Ч
+        </span>
+        {recent24h === 0 && <span className="text-[#FFB454]">НЕТ ПУБЛИКАЦИЙ ЗА СУТКИ</span>}
       </div>
 
       {/* Source connectivity is independent from the age of the latest report.
