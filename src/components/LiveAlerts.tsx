@@ -831,7 +831,8 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   // Reporting within the last 72h is not evidence that a source is reachable now.
   const sourcesWithReports = sources.filter(s => s.count > 0).length;
   const liveConnections = sources.filter(s => s.state === 'ok' || s.state === 'empty').length;
-  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked' || s.state === 'paused').length;
+  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked').length;
+  const pausedSources = sources.filter(s => s.state === 'paused').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const fetchedAge = fetchedAt ? now - Date.parse(fetchedAt) : Number.POSITIVE_INFINITY;
   const feedDelayed = fetchedAge > 10 * 60_000;
@@ -1186,11 +1187,12 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
               aria-controls="osiris-source-health"
               title={sourcesTitle}
               className="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-white/10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white"
-              style={{ color: brokenSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}
+              style={{ color: brokenSources || pausedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}
             >
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
-              {liveConnections}/{sources.length} ИСТОЧНИКОВ ОТВЕТИЛИ · {sourcesWithReports} С ПУБЛИКАЦИЯМИ
-              {brokenSources > 0 && <span className="text-[#FFB454]">· {brokenSources} СБОЙ</span>}
+              {liveConnections}/{sources.length} ДОСТУПНО · {sourcesWithReports} С ПУБЛИКАЦИЯМИ
+              {pausedSources > 0 && <span className="text-[#FFB454]">· {pausedSources} ПРИОСТАНОВЛЕНЫ</span>}
+              {brokenSources > 0 && <span className="text-[#FFB454]">· {brokenSources} ОШИБКИ</span>}
               <ChevronDown className={sourceDetailsOpen ? 'w-3 h-3 rotate-180' : 'w-3 h-3'} />
             </button>
           ) : (
