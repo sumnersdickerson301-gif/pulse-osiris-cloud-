@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { cachedSource, clearSourceCache } from './sourceCache';
+import { cachedSource, clearSourceCache, sourceCacheHealth } from './sourceCache';
 
 type Cam = { id: string };
 const cam = (id: string): Cam => ({ id });
@@ -14,6 +14,11 @@ describe('cachedSource', () => {
     expect(await load()).toEqual([cam('a')]);
     expect(await load()).toEqual([cam('a')]);
     expect(calls).toBe(1);
+    expect(sourceCacheHealth('t1')).toMatchObject({
+      state: 'ok',
+      lastErrorAt: null,
+    });
+    expect(sourceCacheHealth('t1')?.lastSuccessAt).toEqual(expect.any(Number));
   });
 
   it('refetches once the TTL has elapsed', async () => {
@@ -53,6 +58,9 @@ describe('cachedSource', () => {
     await new Promise((r) => setTimeout(r, 25));
     // stale data rather than an empty layer
     expect(await load()).toEqual([cam('good')]);
+    expect(sourceCacheHealth('t4')?.state).toBe('degraded');
+    expect(sourceCacheHealth('t4')?.lastErrorAt).toEqual(expect.any(Number));
+    expect(sourceCacheHealth('t4')?.lastSuccessAt).toEqual(expect.any(Number));
   });
 
   it('treats an empty refresh as a failed one and holds the previous list', async () => {
@@ -63,11 +71,21 @@ describe('cachedSource', () => {
     mode = 'empty';
     await new Promise((r) => setTimeout(r, 25));
     expect(await load()).toEqual([cam('good')]);
+    expect(sourceCacheHealth('t5')?.state).toBe('degraded');
   });
 
   it('returns empty when the first fetch fails with nothing cached', async () => {
     const load = cachedSource<Cam>('t6', async () => { throw new Error('down'); });
     expect(await load()).toEqual([]);
+    expect(sourceCacheHealth('t6')?.state).toBe('error');
+    expect(sourceCacheHealth('t6')?.lastSuccessAt).toBeNull();
+  });
+
+  it('distinguishes a clean empty response from a failed source', async () => {
+    const load = cachedSource<Cam>('empty', async () => [], 10);
+    expect(await load()).toEqual([]);
+    expect(sourceCacheHealth('empty')?.state).toBe('empty');
+    expect(sourceCacheHealth('empty')?.lastErrorAt).toBeNull();
   });
 
   it('keeps separate keys independent', async () => {
