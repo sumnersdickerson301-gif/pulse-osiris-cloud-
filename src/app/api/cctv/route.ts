@@ -563,7 +563,12 @@ const PAGED_REGION_BUDGET_MS = 30_000;
    the date on each of its ~820 pictures. Missouri waits up to 8s on each
    streaming server that does not answer. Madrid reads the date on each of its
    ~360 pictures. */
-const SLOW_REGIONS = new Set(['florida', 'georgia', 'queensland', 'japan-rivers', 'austin', 'missouri', 'madrid']);
+// IBI 511 pages can take the entire 15s per-fetch deadline. Cutting a
+// region off at 12s always loses a page that legitimately takes 13-15s.
+const SLOW_REGIONS = new Set([
+  'florida', 'georgia', 'nevada', 'louisiana', 'newzealand',
+  'queensland', 'japan-rivers', 'austin', 'missouri', 'madrid',
+]);
 
 /**
  * Regions are fetched a few at a time, not all forty-eight at once.
@@ -791,7 +796,13 @@ async function collectRegions(regions: string[]): Promise<{ cameras: Record<stri
   }
   if (!missing.length) return { cameras, pending: [] };
 
-  const fetches = missing.map(region => refreshRegion(region)
+  // Prioritize fast regions in global cold-start scans. The slow paginated
+  // sources still refresh, but no longer monopolize all four pool slots while
+  // dozens of quick sources queue behind them. Preserve requested-region order
+  // in the eventual response (below).
+  const scheduled = [...missing].sort((a, b) =>
+    Number(SLOW_REGIONS.has(a)) - Number(SLOW_REGIONS.has(b)));
+  const fetches = scheduled.map(region => refreshRegion(region)
     .then(result => { if (result.length) cameras[region] = result; })
     .catch(() => { /* the cache logs it and keeps the last good index */ }));
 
