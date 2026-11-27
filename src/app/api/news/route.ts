@@ -400,7 +400,7 @@ async function buildFeed(): Promise<FeedPayload> {
       count: posts.length,
       /** The channel's newest post, even when it is older than the window. */
       latest: all.length ? all[all.length - 1].publishedAt : null,
-      state: health?.state ?? 'unknown',
+      state: (health?.state ?? 'unknown') as SourceCacheState | 'unknown',
       lastSuccessAt: iso(health?.lastSuccessAt),
       lastAttemptAt: iso(health?.lastAttemptAt),
       lastErrorAt: iso(health?.lastErrorAt),
