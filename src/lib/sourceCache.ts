@@ -22,6 +22,8 @@ export interface SourceCacheHealth {
   lastSuccessAt: number | null;
   lastAttemptAt: number | null;
   lastErrorAt: number | null;
+  /** Wall-clock upstream duration in milliseconds, excluding cached reads. */
+  lastDurationMs?: number | null;
   /** Populated when a failed upstream has a retry cooldown. */
   nextRetryAt?: number | null;
 }
@@ -99,13 +101,13 @@ export function cachedSource<T>(
           // Empty upstream response must never be mistaken for a fresh index.
           store.set(key, {
             data: entry.data, expiresAt: now + ttlMs, inflight: null,
-            health: { state: 'degraded', lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
+            health: { state: 'degraded', lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now(), lastDurationMs: Math.max(0, Date.now() - now) },
           });
           return entry.data;
         }
         store.set(key, {
           data, expiresAt: now + ttlMs, inflight: null,
-          health: { state: data.length ? 'ok' : 'empty', lastSuccessAt: Date.now(), lastAttemptAt: now, lastErrorAt: null },
+          health: { state: data.length ? 'ok' : 'empty', lastSuccessAt: Date.now(), lastAttemptAt: now, lastErrorAt: null, lastDurationMs: Math.max(0, Date.now() - now) },
         });
         return data;
       } catch (e) {
@@ -116,14 +118,14 @@ export function cachedSource<T>(
           console.warn(`[OSIRIS] ${key} upstream ${blocked ? 'HTTP 403' : 'error'} — serving ${entry.data.length} cached records; retry in ${retryIn / 60_000}m`);
           store.set(key, {
             data: entry.data, expiresAt: Date.now() + retryIn, inflight: null,
-            health: { state, lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
+            health: { state, lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now(), lastDurationMs: Math.max(0, Date.now() - now) },
           });
           return entry.data;
         }
         console.warn(`[OSIRIS] ${key} upstream fetch failed without cached records:`, e);
         store.set(key, {
           data: [], expiresAt: Date.now() + retryIn, inflight: null,
-          health: { state, lastSuccessAt: entry?.health.lastSuccessAt ?? null, lastAttemptAt: now, lastErrorAt: Date.now() },
+          health: { state, lastSuccessAt: entry?.health.lastSuccessAt ?? null, lastAttemptAt: now, lastErrorAt: Date.now(), lastDurationMs: Math.max(0, Date.now() - now) },
         });
         return [];
       }
@@ -173,7 +175,7 @@ export function seedSource<T>(key: string, data: T[], ttlMs: number = DEFAULT_TT
   if (entry?.inflight) return; // a live fetch already supersedes the snapshot
   store.set(key, {
     data, expiresAt: Date.now() + ttlMs, inflight: null,
-    health: { state: 'seeded', lastSuccessAt: null, lastAttemptAt: null, lastErrorAt: null },
+    health: { state: 'seeded', lastSuccessAt: null, lastAttemptAt: null, lastErrorAt: null, lastDurationMs: null },
   } as Entry<unknown>);
   evictIfNeeded();
 }
