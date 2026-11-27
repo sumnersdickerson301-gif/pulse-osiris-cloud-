@@ -181,17 +181,18 @@ describe('summarizeNewsSources', () => {
       { state: 'degraded', count: 2 },
       { state: 'error', count: 0 },
       { state: 'unknown', count: 0 },
+      { state: 'paused', count: 0 },
     ]);
     expect(totals).toEqual({
-      total: 7, reachable: 3, withReports: 2,
-      blocked: 1, failed: 1, degraded: 1, pending: 1,
+      total: 8, reachable: 3, withReports: 2,
+      blocked: 1, paused: 1, failed: 1, degraded: 1, pending: 1,
     });
   });
 
   it('returns zero metrics when no sources have loaded yet', () => {
     expect(summarizeNewsSources([])).toEqual({
       total: 0, reachable: 0, withReports: 0,
-      blocked: 0, failed: 0, degraded: 0, pending: 0,
+      blocked: 0, paused: 0, failed: 0, degraded: 0, pending: 0,
     });
   });
 });
