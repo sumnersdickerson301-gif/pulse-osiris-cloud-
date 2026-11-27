@@ -28,6 +28,19 @@ describe('CCTV partial responses', () => {
     expect(body.pendingRegions).toEqual([]);
   });
 
+  it('does not keep a region pending after a successful but empty provider response', async () => {
+    vi.mocked(stealthFetch).mockResolvedValue(Response.json({
+      updatedMessage: 'Current data unavailable', noDataMessage: 'No cameras supplied',
+    }));
+    const first = await (await GET(new Request('http://localhost/api/cctv?region=us-central'))).json();
+    expect(first.total).toBe(0);
+    expect(first.pendingRegions).toEqual([]);
+    const calls = vi.mocked(stealthFetch).mock.calls.length;
+    const second = await (await GET(new Request('http://localhost/api/cctv?region=us-central'))).json();
+    expect(second.pendingRegions).toEqual([]);
+    expect(vi.mocked(stealthFetch).mock.calls.length).toBe(calls);
+  });
+
   it('marks slow regions as pending instead of silently treating them as complete', async () => {
     vi.mocked(stealthFetch).mockReturnValue(new Promise(() => {}));
     const pending = GET(new Request('http://localhost/api/cctv?region=uk'));
