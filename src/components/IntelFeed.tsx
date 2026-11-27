@@ -32,11 +32,12 @@ function timeAgo(dateStr: string): string {
   try {
     const date = new Date(dateStr);
     const diff = Date.now() - date.getTime();
+    if (!Number.isFinite(diff)) return 'нет даты';
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60) return `${Math.max(0, mins)} мин назад`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (hrs < 24) return `${Math.max(0, hrs)} ч назад`;
+    return `${Math.max(0, Math.floor(hrs / 24))} дн назад`;
   } catch {
     return '';
   }
@@ -45,7 +46,23 @@ function timeAgo(dateStr: string): string {
 export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const [expanded, setExpanded] = useState(true);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const news = data.news || [];
+  const sources: Array<{
+    handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
+    latest: string | null; state?: string; lastSuccessAt?: string | null;
+  }> = data.news_meta?.sources ?? [];
+  const reportedSources = sources.filter(source => source.count > 0).length;
+  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error').length;
+  const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
+  const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
+  const sourceLabel = (source: (typeof sources)[number]) => {
+    if (source.state === 'degraded') return 'СБОЙ · КЭШ';
+    if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
+    if (source.state === 'empty') return 'ПУСТОЙ ОТВЕТ';
+    if (source.state === 'ok') return source.count ? 'ДАННЫЕ ПОЛУЧЕНЫ' : 'НЕТ НОВЫХ ЗА 72 Ч';
+    return 'НЕ ПРОВЕРЕНО';
+  };
 
   return (
     <motion.div
@@ -68,10 +85,38 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--alert-green)] animate-osiris-pulse" />
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: !sources.length ? '#858B97' : failedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }} />
           {expanded ? <ChevronUp className="w-3 h-3 text-[var(--text-muted)]" /> : <ChevronDown className="w-3 h-3 text-[var(--text-muted)]" />}
         </div>
       </button>
+
+      {/* Source connectivity is independent from the age of the latest report.
+          Expose it by touch instead of displaying an unconditional green LIVE dot. */}
+      <div className="border-t border-white/5 px-3 py-2 text-[10px] font-mono">
+        <button type="button" className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setSourcesOpen(value => !value)} aria-expanded={sourcesOpen} aria-controls="osiris-intel-source-health">
+          <span style={{ color: failedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}>
+            {sources.length ? reportedSources + '/' + sources.length + ' С ПУБЛИКАЦИЯМИ (72 Ч)' : 'ОЖИДАНИЕ ДАННЫХ ОБ ИСТОЧНИКАХ'}
+            {failedSources > 0 && <span> · {failedSources} СБОЙ</span>}
+            {feedDelayed && <span> · ДАННЫЕ ЗАДЕРЖАНЫ</span>}
+          </span>
+          <ChevronDown className={sourcesOpen ? 'h-3 w-3 shrink-0 rotate-180 text-white/60' : 'h-3 w-3 shrink-0 text-white/60'} />
+        </button>
+        {sourcesOpen && (
+          <div id="osiris-intel-source-health" role="region" aria-label="Состояние источников" className="mt-2 max-h-48 overflow-y-auto divide-y divide-white/10 border-t border-white/10">
+            {fetchedAt && <div className="py-2 text-white/55">Данные сформированы: {timeAgo(fetchedAt)}</div>}
+            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded') - Number(a.state === 'error' || a.state === 'degraded')).map(source => (
+              <div key={source.handle} className="flex items-start justify-between gap-2 py-2">
+                <div className="min-w-0">
+                  <div className="truncate text-white/85">{source.name} <span className="text-white/40">· {source.kind === 'wire' ? 'RSS' : 'Telegram'}</span></div>
+                  <div className="text-white/45">{source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest) : 'нет данных'}</div>
+                  {source.lastSuccessAt && <div className="text-white/45">Связь: {timeAgo(source.lastSuccessAt)}</div>}
+                </div>
+                <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* News Items */}
       <AnimatePresence>
@@ -86,7 +131,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
               {news.length === 0 ? (
                 <div className="px-4 py-6 text-center">
                   <span className="text-[10px] font-mono text-[var(--text-muted)] tracking-widest">
-                    AWAITING INTELLIGENCE...
+                    НЕТ СВЕЖИХ СООБЩЕНИЙ
                   </span>
                 </div>
               ) : (
