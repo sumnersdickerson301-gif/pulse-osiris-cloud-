@@ -41,6 +41,13 @@ describe('CCTV partial responses', () => {
     expect(vi.mocked(stealthFetch).mock.calls.length).toBe(calls);
   });
 
+  it('keeps an unavailable IDOT endpoint pending instead of claiming it is empty', async () => {
+    vi.mocked(stealthFetch).mockResolvedValue(new Response('upstream error', { status: 503 }));
+    const result = await (await GET(new Request('http://localhost/api/cctv?region=us-central'))).json();
+    expect(result.total).toBe(0);
+    expect(result.pendingRegions).toEqual(['us-central']);
+  });
+
   it('marks slow regions as pending instead of silently treating them as complete', async () => {
     vi.mocked(stealthFetch).mockReturnValue(new Promise(() => {}));
     const pending = GET(new Request('http://localhost/api/cctv?region=uk'));
