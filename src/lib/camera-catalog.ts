@@ -36,18 +36,25 @@ export function loadCameraCatalog(onBatch: (cameras: CatalogCamera[]) => void, o
       const query = new URLSearchParams({ region: regions.join(',') });
       // Let the browser honour the server's ETag/cache headers for completed
       // catalogues; partial responses already carry no-store on the server.
-      const response = await fetch(`/api/cctv?${query}`, { signal: controller.signal });
+      const response = await fetch(`/api/cctv?${query}`, {
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)]),
+      });
       if (!response.ok) throw new Error(`Camera catalogue HTTP ${response.status}`);
       const data: unknown = await response.json();
       if (!data || typeof data !== 'object') throw new Error('Invalid camera catalogue');
       const catalog = data as { cameras?: unknown; pendingRegions?: unknown };
       if (!Array.isArray(catalog.cameras)) throw new Error('Invalid camera catalogue');
       if (controller.signal.aborted) return;
-      if (catalog.cameras.length) onBatch(catalog.cameras);
+      const validCameras = catalog.cameras.filter((camera: unknown): camera is CatalogCamera => {
+        if (!camera || typeof camera !== 'object') return false;
+        const id = (camera as { id?: unknown }).id;
+        return typeof id === 'string' || typeof id === 'number';
+      });
+      if (validCameras.length) onBatch(validCameras);
       remaining = Array.isArray(catalog.pendingRegions)
         ? [...new Set(catalog.pendingRegions.filter((region: unknown): region is string =>
             typeof region === 'string' && /^[a-z-]+$/.test(region)))]
-        : catalog.cameras.length ? [] : regions;
+        : validCameras.length ? [] : regions;
     } catch {
       if (controller.signal.aborted) return;
       onError();
