@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { cachedSource } from '@/lib/sourceCache';
+import { cachedSource, sourceCacheHealth, type SourceCacheState } from '@/lib/sourceCache';
 import { fingerprint, htmlToText, parseChannelPage, splitHeadline, type TelegramPost } from '@/lib/telegram';
 import type { Bloc } from '@/lib/alert-digest';
 import { alertKind, locateReport, type AlertKind, type AlertPlace } from '@/lib/alert-places';
@@ -360,6 +360,11 @@ interface SourceHealth {
   kind: 'telegram' | 'wire';
   count: number;
   latest: string | null;
+  // 'ok' means the last upstream fetch succeeded, not that it posted recently.
+  state: SourceCacheState | 'unknown';
+  lastSuccessAt: string | null;
+  lastAttemptAt: string | null;
+  lastErrorAt: string | null;
 }
 
 interface FeedPayload {
@@ -380,18 +385,27 @@ async function buildFeed(): Promise<FeedPayload> {
     }));
 
     const wireHandles = new Set(WIRE_FEEDS.map(f => f.handle));
-    const sources = loaded.map(({ channel, all, posts }) => ({
+    const sources = loaded.map(({ channel, all, posts }) => {
+      const kind = wireHandles.has(channel.handle) ? 'wire' as const : 'telegram' as const;
+      const health = sourceCacheHealth(`${kind}:${channel.handle}`);
+      const iso = (ms: number | null | undefined) => ms == null ? null : new Date(ms).toISOString();
+      return {
       handle: channel.handle,
       name: channel.name,
       lean: channel.lean,
       bloc: channel.bloc,
       /** Where it was read from, so the panel can say what kind of source it is. */
-      kind: wireHandles.has(channel.handle) ? 'wire' as const : 'telegram' as const,
+      kind,
       /** Posts inside the live window. */
       count: posts.length,
       /** The channel's newest post, even when it is older than the window. */
       latest: all.length ? all[all.length - 1].publishedAt : null,
-    }));
+      state: health?.state ?? 'unknown',
+      lastSuccessAt: iso(health?.lastSuccessAt),
+      lastAttemptAt: iso(health?.lastAttemptAt),
+      lastErrorAt: iso(health?.lastErrorAt),
+      };
+    });
 
     const stories = mergeCrossPosts(loaded.flatMap(({ channel, posts }) => posts.map(post => ({ post, channel }))));
 
