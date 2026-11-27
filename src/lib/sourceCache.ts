@@ -15,13 +15,15 @@
  *                  rather than dropping the layer to zero cameras.
  */
 
-export type SourceCacheState = 'ok' | 'empty' | 'degraded' | 'error' | 'seeded';
+export type SourceCacheState = 'ok' | 'empty' | 'degraded' | 'error' | 'blocked' | 'seeded';
 
 export interface SourceCacheHealth {
   state: SourceCacheState;
   lastSuccessAt: number | null;
   lastAttemptAt: number | null;
   lastErrorAt: number | null;
+  /** Populated when a failed upstream has a retry cooldown. */
+  nextRetryAt?: number | null;
 }
 
 interface Entry<T> {
@@ -34,12 +36,25 @@ interface Entry<T> {
 /** Source-specific telemetry — a cached array alone cannot prove a feed is live. */
 export function sourceCacheHealth(key: string): SourceCacheHealth | null {
   const entry = store.get(key);
-  return entry ? { ...entry.health } : null;
+  return entry ? {
+    ...entry.health,
+    nextRetryAt: entry.health.state === 'blocked' || entry.health.state === 'error' || entry.health.state === 'degraded'
+      ? entry.expiresAt
+      : null,
+  } : null;
 }
 
 const store = new Map<string, Entry<unknown>>();
 
 export const DEFAULT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+// Access-denied feeds need a longer cooldown than transient outages. This is
+// a per-runtime cooldown, not a claim that the upstream became reachable.
+export const FORBIDDEN_RETRY_MS = 15 * 60_000;
+const FAILURE_RETRY_MS = 60_000;
+function isForbiddenError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:HTTP|Status:)\s*403\b/i.test(message);
+}
 
 /**
  * Cap on distinct keys. Camera sources are a fixed handful, but callers with
@@ -71,8 +86,10 @@ export function cachedSource<T>(
     const now = Date.now();
     const entry = store.get(key) as Entry<T> | undefined;
 
-    if (entry && now < entry.expiresAt && entry.data.length > 0) return entry.data;
     if (entry?.inflight) return entry.inflight;
+    // Negative-cache empty and failed responses too. Previously an empty
+    // array bypassed the TTL, so a blocked feed retried on EVERY request.
+    if (entry && now < entry.expiresAt) return entry.data;
 
     const inflight = (async () => {
       try {
@@ -92,19 +109,21 @@ export function cachedSource<T>(
         });
         return data;
       } catch (e) {
+        const blocked = isForbiddenError(e);
+        const retryIn = blocked ? FORBIDDEN_RETRY_MS : FAILURE_RETRY_MS;
+        const state: SourceCacheState = blocked ? 'blocked' : entry?.data.length ? 'degraded' : 'error';
         if (entry?.data.length) {
-          console.warn(`[OSIRIS] ${key} refresh failed — serving ${entry.data.length} cached cameras`);
-          // Retry sooner than a full TTL, but don't hammer the failing upstream.
+          console.warn(`[OSIRIS] ${key} upstream ${blocked ? 'HTTP 403' : 'error'} — serving ${entry.data.length} cached records; retry in ${retryIn / 60_000}m`);
           store.set(key, {
-            data: entry.data, expiresAt: now + 60_000, inflight: null,
-            health: { state: 'degraded', lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
+            data: entry.data, expiresAt: Date.now() + retryIn, inflight: null,
+            health: { state, lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
           });
           return entry.data;
         }
-        console.warn(`[OSIRIS] ${key} fetch failed with no cache to fall back on:`, e);
+        console.warn(`[OSIRIS] ${key} upstream fetch failed without cached records:`, e);
         store.set(key, {
-          data: [], expiresAt: now + 60_000, inflight: null,
-          health: { state: 'error', lastSuccessAt: entry?.health.lastSuccessAt ?? null, lastAttemptAt: now, lastErrorAt: Date.now() },
+          data: [], expiresAt: Date.now() + retryIn, inflight: null,
+          health: { state, lastSuccessAt: entry?.health.lastSuccessAt ?? null, lastAttemptAt: now, lastErrorAt: Date.now() },
         });
         return [];
       }
