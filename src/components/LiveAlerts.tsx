@@ -1138,7 +1138,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             className="flex min-w-0 items-center gap-2 outline-none"
           >
             <Radio className="w-3.5 h-3.5 flex-shrink-0" style={{ color: ACCENT }} />
-            <span className="hud-text whitespace-nowrap text-[11px] text-[var(--text-primary)]">LIVE ALERTS</span>
+            <span className="hud-text whitespace-nowrap text-[11px] text-[var(--text-primary)]">ОПОВЕЩЕНИЯ</span>
             <span className="gotham-tag gotham-tag--high" style={{ fontSize: '9px', padding: '1px 5px' }}>{news.length + quakes.length}</span>
           </button>
           <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -1157,7 +1157,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
               </button>
             )}
             {onRefresh && (
-              <button onClick={refresh} disabled={refreshing} className="p-1 rounded hover:bg-white/10 transition-colors" title="Refresh (channels are re-read every 3 minutes)" aria-label="Refresh alerts">
+              <button onClick={refresh} disabled={refreshing} className="p-1 rounded hover:bg-white/10 transition-colors" title="Обновить источники (плановая проверка каждые 5 минут)" aria-label="Обновить оповещения">
                 <RefreshCw className={`w-3 h-3 text-[var(--text-muted)] ${refreshing ? 'animate-spin' : ''}`} />
               </button>
             )}
@@ -1174,22 +1174,49 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 pb-1.5 text-[9px] font-mono tracking-wider text-[#5C5A54] whitespace-nowrap overflow-hidden">
+        <div className="flex items-center gap-1.5 px-3 pb-1.5 text-[9px] font-mono tracking-wider text-[#A8ACB5] whitespace-nowrap overflow-x-auto">
           {sources.length > 0 ? (
-            <span
+            <button
+              type="button"
+              onClick={() => setSourceDetailsOpen(open => !open)}
+              aria-expanded={sourceDetailsOpen}
+              aria-controls="osiris-source-health"
               title={sourcesTitle}
-              className="flex items-center gap-1 cursor-help"
-              style={{ color: liveSources === sources.length ? '#00E676' : '#FF9500' }}
+              className="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 hover:bg-white/10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-white"
+              style={{ color: brokenSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}
             >
-              <span className="h-1.5 w-1.5 rounded-full animate-osiris-pulse" style={{ background: 'currentColor' }} />
-              {liveSources}/{sources.length} SOURCES LIVE
-            </span>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
+              {sourcesWithReports}/{sources.length} С ПУБЛИКАЦИЯМИ (72 Ч)
+              {brokenSources > 0 && <span className="text-[#FFB454]">· {brokenSources} СБОЙ</span>}
+              <ChevronDown className={sourceDetailsOpen ? 'w-3 h-3 rotate-180' : 'w-3 h-3'} />
+            </button>
           ) : (
-            <span>CONNECTING…</span>
+            <span>ОЖИДАНИЕ ИСТОЧНИКОВ…</span>
           )}
-          {fetchedAt && <span title={`Feed fetched ${new Date(fetchedAt).toLocaleString()}`}>· UPDATED {timeAgo(fetchedAt, now).toUpperCase()}</span>}
-          {breakingCount > 0 && <span className="text-[#FF6B6B]">· {breakingCount} BREAKING</span>}
+          {feedDelayed && fetchedAt ? (
+            <span className="shrink-0 text-[#FFB454]" title="Последний ответ старше 10 минут">· ДАННЫЕ ЗАДЕРЖАНЫ</span>
+          ) : fetchedAt ? (
+            <span className="shrink-0" title={'Данные сформированы ' + new Date(fetchedAt).toLocaleString()}>· ДАННЫЕ {timeAgo(fetchedAt, now).toUpperCase()}</span>
+          ) : null}
+          {breakingCount > 0 && <span className="shrink-0 text-[#FF6B6B]">· {breakingCount} СРОЧНЫХ</span>}
         </div>
+        {sourceDetailsOpen && (
+          <div id="osiris-source-health" className="max-h-48 overflow-y-auto border-t border-white/10 bg-[#0A0F17]/95 px-3 py-2 text-[10px] font-mono" role="region" aria-label="Состояние новостных источников">
+            <div className="mb-2 text-white/55">Статус последнего получения данных · публикации за 72 часа</div>
+            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded') - Number(a.state === 'error' || a.state === 'degraded')).map(source => (
+              <div key={source.handle} className="flex items-start justify-between gap-3 border-b border-white/5 py-1.5 last:border-b-0">
+                <div className="min-w-0">
+                  <div className="truncate text-white/85">{source.name} <span className="text-white/35">· {source.kind === 'wire' ? 'RSS' : 'Telegram'}</span></div>
+                  <div className="text-white/45">
+                    {source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest, now) : 'нет данных'}
+                    {source.lastSuccessAt && <span> · связь: {timeAgo(source.lastSuccessAt, now)}</span>}
+                  </div>
+                </div>
+                <span className="shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' ? '#FFB454' : source.state === 'ok' ? '#8FE4B1' : '#A8ACB5' }}>{sourceStatus(source)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <AnimatePresence initial={false}>
