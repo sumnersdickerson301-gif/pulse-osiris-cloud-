@@ -12,7 +12,12 @@ import {
   ALERT_KINDS, BLOCS, BLOC_ORDER, buildThreads, groupStatements, timeAgo, type AlertKind, type Bloc, type DigestReport,
 } from '@/lib/alert-digest';
 
-interface SourceHealth { handle: string; name: string; lean: string; bloc: Bloc; kind?: 'telegram' | 'wire'; count: number; latest: string | null }
+interface SourceHealth {
+  handle: string; name: string; lean: string; bloc: Bloc;
+  kind?: 'telegram' | 'wire'; count: number; latest: string | null;
+  state?: 'ok' | 'empty' | 'degraded' | 'error' | 'seeded' | 'unknown';
+  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null;
+}
 
 /** The slice of dashboard state this panel reads. */
 interface LiveAlertsData {
@@ -694,6 +699,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   const [openId, setOpenId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [sourceDetailsOpen, setSourceDetailsOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -822,8 +828,20 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   }, [units, now, tab]);
 
   const sources: SourceHealth[] = data.news_meta?.sources ?? [];
-  const liveSources = sources.filter(s => s.count > 0).length;
+  // Reporting within the last 72h is not evidence that a source is reachable now.
+  const sourcesWithReports = sources.filter(s => s.count > 0).length;
+  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
+  const fetchedAge = fetchedAt ? now - Date.parse(fetchedAt) : Number.POSITIVE_INFINITY;
+  const feedDelayed = fetchedAge > 10 * 60_000;
+  const sourceStatus = (source: SourceHealth) => {
+    if (source.state === 'degraded') return 'СБОЙ · ПОКАЗАН КЭШ';
+    if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
+    if (source.state === 'empty') return 'ОТВЕТ БЕЗ ПУБЛИКАЦИЙ';
+    if (source.state === 'seeded') return 'ЛОКАЛЬНЫЙ КЭШ';
+    if (source.state === 'unknown' || !source.state) return 'СОСТОЯНИЕ НЕИЗВЕСТНО';
+    return source.count ? 'ПОЛУЧЕНЫ ПУБЛИКАЦИИ' : 'НЕТ НОВЫХ ЗА 72 Ч';
+  };
   const breakingCount = news.filter(n => n.flag).length;
   const loading = data.news === undefined;
   const filtersActive = newsFiltersActive || Boolean(q);
@@ -868,20 +886,12 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
     { id: 'feeds', label: 'FEEDS', count: BUILTIN_FEEDS.length },
   ];
 
-  /* Grouped by where each source is read from, since a channel going quiet
-     and a wire going quiet mean different things. */
+  /* Available both as a tooltip and as an expandable view on touch devices. */
   const sourcesTitle = sources.length
-    ? (['telegram', 'wire'] as const)
-      .map(kind => {
-        const group = sources.filter(s => (s.kind ?? 'telegram') === kind);
-        if (!group.length) return '';
-        const heading = kind === 'telegram' ? 'CHANNELS' : 'WIRES';
-        const lines = group.map(s => `  ${s.name}: ${s.count ? `${s.count} items, latest ${timeAgo(s.latest, now)}` : s.latest ? `quiet — nothing in 72h (last ${timeAgo(s.latest, now)})` : 'unreachable'}`);
-        return `${heading}\n${lines.join('\n')}`;
-      })
-      .filter(Boolean)
-      .join('\n\n')
-    : 'Waiting for the source report';
+    ? sources.map(source => source.name + ': ' + sourceStatus(source) +
+        ' · ' + source.count + ' за 72 ч' +
+        (source.latest ? ' · последняя ' + timeAgo(source.latest, now) : '')).join('\n')
+    : 'Ожидание данных об источниках';
 
   /* Rocket and breaking are filters over reports; leaving one set while the
      panel shows warnings would label the list with a filter it is not using. */
