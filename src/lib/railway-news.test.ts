@@ -39,16 +39,16 @@ describe('Railway news pilot', () => {
 
   it('fetches only the fixed HTTPS Railway service, without credentials', async () => {
     process.env.OSIRIS_NEWS_BACKEND = 'railway';
-    const mock = vi.fn(async () => json());
+    const mock = vi.fn(async (_url: string, _init?: RequestInit) => json());
     vi.stubGlobal('fetch', mock);
     expect((await loadRailwayNews())?.news).toHaveLength(1);
     expect(mock).toHaveBeenCalledTimes(1);
-    const [url, init] = mock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = mock.mock.calls[0];
     expect(url).toBe(RAILWAY_NEWS_URL);
-    expect(init.redirect).toBe('error');
-    expect(init.cache).toBe('no-store');
-    expect(new Headers(init.headers).has('cookie')).toBe(false);
-    expect(new Headers(init.headers).has('authorization')).toBe(false);
+    expect(init?.redirect).toBe('error');
+    expect(init?.cache).toBe('no-store');
+    expect(new Headers(init?.headers).has('cookie')).toBe(false);
+    expect(new Headers(init?.headers).has('authorization')).toBe(false);
   });
 
   it('refuses stale or structurally invalid news rather than replacing valid local stories', () => {
