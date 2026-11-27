@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { cachedSource, clearSourceCache, sourceCacheHealth } from './sourceCache';
+import { cachedSource, clearSourceCache, sourceCacheHealth, FORBIDDEN_RETRY_MS } from './sourceCache';
 
 type Cam = { id: string };
 const cam = (id: string): Cam => ({ id });
@@ -86,6 +86,49 @@ describe('cachedSource', () => {
     expect(await load()).toEqual([]);
     expect(sourceCacheHealth('empty')?.state).toBe('empty');
     expect(sourceCacheHealth('empty')?.lastErrorAt).toBeNull();
+  });
+
+  it('negative-caches transient failures instead of retrying on each dashboard request', async () => {
+    let calls = 0;
+    const load = cachedSource<Cam>('transient', async () => {
+      calls++;
+      throw new Error('HTTP 503');
+    }, 10);
+    expect(await load()).toEqual([]);
+    expect(await load()).toEqual([]);
+    expect(calls).toBe(1);
+    expect(sourceCacheHealth('transient')?.state).toBe('error');
+  });
+
+  it('backs off forbidden HTTP 403 sources for 15 minutes and reports the retry time', async () => {
+    let calls = 0;
+    const before = Date.now();
+    const load = cachedSource<Cam>('forbidden', async () => {
+      calls++;
+      throw new Error('HTTP 403');
+    }, 10);
+    expect(await load()).toEqual([]);
+    expect(await load()).toEqual([]);
+    expect(calls).toBe(1);
+    const health = sourceCacheHealth('forbidden');
+    expect(health?.state).toBe('blocked');
+    expect(health?.lastSuccessAt).toBeNull();
+    expect(health?.nextRetryAt).toBeGreaterThanOrEqual(before + FORBIDDEN_RETRY_MS);
+  });
+
+  it('preserves last good records when a source becomes forbidden', async () => {
+    let blocked = false;
+    const load = cachedSource<Cam>('forbidden-after-ok', async () => {
+      if (blocked) throw new Error('Status: 403');
+      return [cam('last-good')];
+    }, 10);
+    expect(await load()).toEqual([cam('last-good')]);
+    const successAt = sourceCacheHealth('forbidden-after-ok')?.lastSuccessAt;
+    blocked = true;
+    await new Promise(resolve => setTimeout(resolve, 25));
+    expect(await load()).toEqual([cam('last-good')]);
+    expect(sourceCacheHealth('forbidden-after-ok')?.state).toBe('blocked');
+    expect(sourceCacheHealth('forbidden-after-ok')?.lastSuccessAt).toBe(successAt);
   });
 
   it('keeps separate keys independent', async () => {
