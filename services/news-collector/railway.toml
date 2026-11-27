@@ -1,0 +1,10 @@
+# Independent Railway service; not referenced by the existing OSIRIS image.
+# Configure Root Directory = services/news-collector and mount a volume at /data.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ALWAYS"
