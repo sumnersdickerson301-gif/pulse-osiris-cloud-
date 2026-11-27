@@ -91,14 +91,15 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   }, [news, headlineLanguage]);
   const sources: Array<{
     handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
-    latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null;
+    latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null; pausedReason?: string | null;
   }> = data.news_meta?.sources ?? [];
   const reportedSources = sources.filter(source => source.count > 0).length;
   const liveConnections = sources.filter(source => source.state === 'ok' || source.state === 'empty').length;
-  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked').length;
+  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked' || source.state === 'paused').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
   const sourceLabel = (source: (typeof sources)[number]) => {
+    if (source.state === 'paused') return 'ПРИОСТАНОВЛЕН · HTTP 403';
     if (source.state === 'blocked') return 'HTTP 403 · ДОСТУП ЗАПРЕЩЁН';
     if (source.state === 'degraded') return 'СБОЙ · КЭШ';
     if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
@@ -168,8 +169,9 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                   {source.lastSuccessAt && <div className="text-white/45">Связь: {timeAgo(source.lastSuccessAt)}</div>}
                   {source.responseMs !== null && source.responseMs !== undefined && <div className="text-white/45">Последний ответ: {source.responseMs} мс</div>}
                   {source.nextRetryAt && <div className="text-white/45">Следующая попытка: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
+                  {source.pausedReason && <div className="text-[#FFB454]/70">{source.pausedReason} · повторный опрос отключён</div>}
                 </div>
-                <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
+                <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' || source.state === 'paused' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
               </div>
             ))}
           </div>
