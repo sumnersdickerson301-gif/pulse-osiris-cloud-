@@ -50,13 +50,14 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const news = data.news || [];
   const sources: Array<{
     handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
-    latest: string | null; state?: string; lastSuccessAt?: string | null;
+    latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null;
   }> = data.news_meta?.sources ?? [];
   const reportedSources = sources.filter(source => source.count > 0).length;
-  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error').length;
+  const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
   const sourceLabel = (source: (typeof sources)[number]) => {
+    if (source.state === 'blocked') return 'HTTP 403 · ДОСТУП ЗАПРЕЩЁН';
     if (source.state === 'degraded') return 'СБОЙ · КЭШ';
     if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
     if (source.state === 'empty') return 'ПУСТОЙ ОТВЕТ';
@@ -110,6 +111,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
                   <div className="truncate text-white/85">{source.name} <span className="text-white/40">· {source.kind === 'wire' ? 'RSS' : 'Telegram'}</span></div>
                   <div className="text-white/45">{source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest) : 'нет данных'}</div>
                   {source.lastSuccessAt && <div className="text-white/45">Связь: {timeAgo(source.lastSuccessAt)}</div>}
+                  {source.nextRetryAt && <div className="text-white/45">Следующая попытка: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
                 </div>
                 <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
               </div>
