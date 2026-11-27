@@ -50,9 +50,10 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
   const news = data.news || [];
   const sources: Array<{
     handle: string; name: string; kind?: 'wire' | 'telegram'; count: number;
-    latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null;
+    latest: string | null; state?: string; lastSuccessAt?: string | null; nextRetryAt?: string | null; responseMs?: number | null;
   }> = data.news_meta?.sources ?? [];
   const reportedSources = sources.filter(source => source.count > 0).length;
+  const liveConnections = sources.filter(source => source.state === 'ok' || source.state === 'empty').length;
   const failedSources = sources.filter(source => source.state === 'degraded' || source.state === 'error' || source.state === 'blocked').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const feedDelayed = fetchedAt !== null && Date.now() - Date.parse(fetchedAt) > 10 * 60_000;
@@ -96,7 +97,7 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
       <div className="border-t border-white/5 px-3 py-2 text-[10px] font-mono">
         <button type="button" className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setSourcesOpen(value => !value)} aria-expanded={sourcesOpen} aria-controls="osiris-intel-source-health">
           <span style={{ color: failedSources || feedDelayed ? '#FFB454' : '#8FE4B1' }}>
-            {sources.length ? reportedSources + '/' + sources.length + ' С ПУБЛИКАЦИЯМИ (72 Ч)' : 'ОЖИДАНИЕ ДАННЫХ ОБ ИСТОЧНИКАХ'}
+            {sources.length ? liveConnections + '/' + sources.length + ' ИСТОЧНИКОВ ОТВЕТИЛИ · ' + reportedSources + ' С ПУБЛИКАЦИЯМИ' : 'ОЖИДАНИЕ ДАННЫХ ОБ ИСТОЧНИКАХ'}
             {failedSources > 0 && <span> · {failedSources} СБОЙ</span>}
             {feedDelayed && <span> · ДАННЫЕ ЗАДЕРЖАНЫ</span>}
           </span>
@@ -105,15 +106,16 @@ export default function IntelFeed({ data, onLocate }: IntelFeedProps) {
         {sourcesOpen && (
           <div id="osiris-intel-source-health" role="region" aria-label="Состояние источников" className="mt-2 max-h-48 overflow-y-auto divide-y divide-white/10 border-t border-white/10">
             {fetchedAt && <div className="py-2 text-white/55">Данные сформированы: {timeAgo(fetchedAt)}</div>}
-            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded') - Number(a.state === 'error' || a.state === 'degraded')).map(source => (
+            {[...sources].sort((a, b) => Number(b.state === 'error' || b.state === 'degraded' || b.state === 'blocked') - Number(a.state === 'error' || a.state === 'degraded' || a.state === 'blocked')).map(source => (
               <div key={source.handle} className="flex items-start justify-between gap-2 py-2">
                 <div className="min-w-0">
                   <div className="truncate text-white/85">{source.name} <span className="text-white/40">· {source.kind === 'wire' ? 'RSS' : 'Telegram'}</span></div>
                   <div className="text-white/45">{source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest) : 'нет данных'}</div>
                   {source.lastSuccessAt && <div className="text-white/45">Связь: {timeAgo(source.lastSuccessAt)}</div>}
+                  {source.responseMs !== null && source.responseMs !== undefined && <div className="text-white/45">Последний ответ: {source.responseMs} мс</div>}
                   {source.nextRetryAt && <div className="text-white/45">Следующая попытка: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>}
                 </div>
-                <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
+                <div className="max-w-28 shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' ? '#FFB454' : '#8FE4B1' }}>{sourceLabel(source)}</div>
               </div>
             ))}
           </div>
