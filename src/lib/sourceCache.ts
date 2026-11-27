@@ -15,10 +15,26 @@
  *                  rather than dropping the layer to zero cameras.
  */
 
+export type SourceCacheState = 'ok' | 'empty' | 'degraded' | 'error' | 'seeded';
+
+export interface SourceCacheHealth {
+  state: SourceCacheState;
+  lastSuccessAt: number | null;
+  lastAttemptAt: number | null;
+  lastErrorAt: number | null;
+}
+
 interface Entry<T> {
   data: T[];
   expiresAt: number;
   inflight: Promise<T[]> | null;
+  health: SourceCacheHealth;
+}
+
+/** Source-specific telemetry — a cached array alone cannot prove a feed is live. */
+export function sourceCacheHealth(key: string): SourceCacheHealth | null {
+  const entry = store.get(key);
+  return entry ? { ...entry.health } : null;
 }
 
 const store = new Map<string, Entry<unknown>>();
@@ -63,20 +79,33 @@ export function cachedSource<T>(
         const data = await fetcher();
         // An empty result is treated as a failed refresh: keep whatever we had.
         if (data.length === 0 && entry?.data.length) {
-          store.set(key, { data: entry.data, expiresAt: now + ttlMs, inflight: null });
+          // Empty upstream response must never be mistaken for a fresh index.
+          store.set(key, {
+            data: entry.data, expiresAt: now + ttlMs, inflight: null,
+            health: { state: 'degraded', lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
+          });
           return entry.data;
         }
-        store.set(key, { data, expiresAt: now + ttlMs, inflight: null });
+        store.set(key, {
+          data, expiresAt: now + ttlMs, inflight: null,
+          health: { state: data.length ? 'ok' : 'empty', lastSuccessAt: Date.now(), lastAttemptAt: now, lastErrorAt: null },
+        });
         return data;
       } catch (e) {
         if (entry?.data.length) {
           console.warn(`[OSIRIS] ${key} refresh failed — serving ${entry.data.length} cached cameras`);
           // Retry sooner than a full TTL, but don't hammer the failing upstream.
-          store.set(key, { data: entry.data, expiresAt: now + 60_000, inflight: null });
+          store.set(key, {
+            data: entry.data, expiresAt: now + 60_000, inflight: null,
+            health: { state: 'degraded', lastSuccessAt: entry.health.lastSuccessAt, lastAttemptAt: now, lastErrorAt: Date.now() },
+          });
           return entry.data;
         }
         console.warn(`[OSIRIS] ${key} fetch failed with no cache to fall back on:`, e);
-        store.set(key, { data: [], expiresAt: now + 60_000, inflight: null });
+        store.set(key, {
+          data: [], expiresAt: now + 60_000, inflight: null,
+          health: { state: 'error', lastSuccessAt: entry?.health.lastSuccessAt ?? null, lastAttemptAt: now, lastErrorAt: Date.now() },
+        });
         return [];
       }
     })();
@@ -85,6 +114,7 @@ export function cachedSource<T>(
       data: entry?.data ?? [],
       expiresAt: entry?.expiresAt ?? 0,
       inflight,
+      health: entry?.health ?? { state: 'empty', lastSuccessAt: null, lastAttemptAt: now, lastErrorAt: null },
     } as Entry<unknown>);
     evictIfNeeded();
 
@@ -122,7 +152,10 @@ export function seedSource<T>(key: string, data: T[], ttlMs: number = DEFAULT_TT
   if (!data.length) return;
   const entry = store.get(key);
   if (entry?.inflight) return; // a live fetch already supersedes the snapshot
-  store.set(key, { data, expiresAt: Date.now() + ttlMs, inflight: null } as Entry<unknown>);
+  store.set(key, {
+    data, expiresAt: Date.now() + ttlMs, inflight: null,
+    health: { state: 'seeded', lastSuccessAt: null, lastAttemptAt: null, lastErrorAt: null },
+  } as Entry<unknown>);
   evictIfNeeded();
 }
 
