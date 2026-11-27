@@ -65,11 +65,16 @@ type Channel = Feed;
  * France 24 (empty), Kyiv Independent (404 — its Telegram channel is above),
  * Jerusalem Post (items dated 2025).
  */
-const WIRE_FEEDS: (Feed & { url: string })[] = [
+// Vercel server IPs have repeatedly received HTTP 403 from these two RSS
+// servers. They remain visible in source health, but are not polled from
+// every independent serverless instance. Set OSIRIS_RETRY_PAUSED_FEEDS=1 to
+// recheck after publisher access is restored.
+type WireFeed = Feed & { url: string; pausedReason?: string };
+const WIRE_FEEDS: WireFeed[] = [
   { handle: 'bbc',        url: 'https://feeds.bbci.co.uk/news/world/rss.xml',        name: 'BBC World',        lean: 'British public broadcaster',   bloc: 'western' },
-  { handle: 'guardian',   url: 'https://www.theguardian.com/world/rss',              name: 'The Guardian',     lean: 'British newsroom',             bloc: 'western' },
+  { handle: 'guardian',   url: 'https://www.theguardian.com/world/rss',              name: 'The Guardian',     lean: 'British newsroom',             bloc: 'western', pausedReason: 'HTTP 403 с Vercel' },
   { handle: 'aljazeera',  url: 'https://www.aljazeera.com/xml/rss/all.xml',          name: 'Al Jazeera',       lean: 'Qatari broadcaster',           bloc: 'regional' },
-  { handle: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/',             name: 'Times of Israel',  lean: 'Israeli newsroom',             bloc: 'regional' },
+  { handle: 'timesofisrael', url: 'https://www.timesofisrael.com/feed/',             name: 'Times of Israel',  lean: 'Israeli newsroom',             bloc: 'regional', pausedReason: 'HTTP 403 с Vercel' },
   // Independent Israeli newsroom: maintains regional coverage when ToI blocks cloud IPs.
   { handle: 'jpost',       url: 'https://www.jpost.com/rss/rssfeedsfrontpage.aspx', name: 'The Jerusalem Post', lean: 'Israeli newsroom',        bloc: 'regional' },
   { handle: 'tass',       url: 'https://tass.com/rss/v2.xml',                        name: 'TASS',             lean: 'Russian state agency',         bloc: 'russian' },
@@ -220,7 +225,8 @@ export function wirePost(item: RssItem, feed: Feed): TelegramPost {
 
 const wireFeeds = WIRE_FEEDS.map(feed => ({
   channel: feed,
-  load: cachedSource<TelegramPost>(`wire:${feed.handle}`, async () => {
+  load: feed.pausedReason && process.env.OSIRIS_RETRY_PAUSED_FEEDS !== '1'
+    ? async (): Promise<TelegramPost[]> => [] : cachedSource<TelegramPost>(`wire:${feed.handle}`, async () => {
     const res = await fetch(feed.url, {
       signal: AbortSignal.timeout(8000),
       headers: { 'User-Agent': BROWSER_UA, Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8' },
@@ -363,7 +369,8 @@ interface SourceHealth {
   count: number;
   latest: string | null;
   // 'ok' means the last upstream fetch succeeded, not that it posted recently.
-  state: SourceCacheState | 'unknown';
+  state: SourceCacheState | 'unknown' | 'paused';
+  pausedReason: string | null;
   lastSuccessAt: string | null;
   lastAttemptAt: string | null;
   lastErrorAt: string | null;
@@ -380,13 +387,14 @@ interface FeedPayload {
 }
 
 /** Counts actual source results, not the existence of recent articles. */
-export function summarizeNewsSources(sources: Array<{ state: SourceCacheState | 'unknown'; count: number }>) {
-  const count = (state: SourceCacheState | 'unknown') => sources.filter(source => source.state === state).length;
+export function summarizeNewsSources(sources: Array<{ state: SourceCacheState | 'unknown' | 'paused'; count: number }>) {
+  const count = (state: SourceCacheState | 'unknown' | 'paused') => sources.filter(source => source.state === state).length;
   return {
     total: sources.length,
     reachable: count('ok') + count('empty'),
     withReports: sources.filter(source => source.count > 0).length,
     blocked: count('blocked'),
+    paused: count('paused'),
     failed: count('error'),
     degraded: count('degraded'),
     pending: count('unknown') + count('seeded'),
@@ -406,7 +414,9 @@ async function buildFeed(): Promise<FeedPayload> {
     const wireHandles = new Set(WIRE_FEEDS.map(f => f.handle));
     const sources = loaded.map(({ channel, all, posts }) => {
       const kind = wireHandles.has(channel.handle) ? 'wire' as const : 'telegram' as const;
-      const health = sourceCacheHealth(`${kind}:${channel.handle}`);
+      const wire = kind === 'wire' ? WIRE_FEEDS.find(feed => feed.handle === channel.handle) : undefined;
+      const pausedReason = process.env.OSIRIS_RETRY_PAUSED_FEEDS === '1' ? null : wire?.pausedReason ?? null;
+      const health = pausedReason ? null : sourceCacheHealth(`${kind}:${channel.handle}`);
       const iso = (ms: number | null | undefined) => ms == null ? null : new Date(ms).toISOString();
       return {
       handle: channel.handle,
@@ -419,7 +429,8 @@ async function buildFeed(): Promise<FeedPayload> {
       count: posts.length,
       /** The channel's newest post, even when it is older than the window. */
       latest: all.length ? all[all.length - 1].publishedAt : null,
-      state: (health?.state ?? 'unknown') as SourceCacheState | 'unknown',
+      state: (pausedReason ? 'paused' : health?.state ?? 'unknown') as SourceCacheState | 'unknown' | 'paused',
+      pausedReason,
       lastSuccessAt: iso(health?.lastSuccessAt),
       lastAttemptAt: iso(health?.lastAttemptAt),
       lastErrorAt: iso(health?.lastErrorAt),
