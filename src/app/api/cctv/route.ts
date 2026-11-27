@@ -277,6 +277,9 @@ async function fetchUSCentralCameras(): Promise<any[]> {
   // Illinois DOT
   {
     const data = await subSource('IDOT', 'https://www.travelmidwest.com/lmiga/cameraReport.json', 8000);
+    // A network error (null) must not masquerade as an authoritative empty
+    // response. Otherwise this region appears "complete" for a whole TTL.
+    if (data === null) throw new Error('IDOT camera index unavailable');
     if (data) {
       /* travelmidwest answers 200 with {updatedMessage, noDataMessage} and no
          cameras at all — an object, not the array this assumed. That threw a
@@ -664,10 +667,13 @@ function refreshRegion(region: string): Promise<any[]> {
 
 const ALL_REGIONS = () => Object.keys(REGION_FETCHERS);
 
-/** A genuinely empty response is not a region still loading. Initial
- * in-flight placeholders also say "empty" but have no successful fetch.
+/** Only sources that distinguish a real empty response from upstream errors
+ * may be considered settled without cameras. Other legacy fetchers swallow
+ * their errors into [], so treating their empty caches as complete would hide
+ * a camera outage as successful loading.
  */
 function settledEmptyRegion(region: string): boolean {
+  if (region !== 'us-central') return false;
   const health = sourceCacheHealth(`cctv:${region}`);
   return health?.state === 'empty' && health.lastSuccessAt !== null;
 }
