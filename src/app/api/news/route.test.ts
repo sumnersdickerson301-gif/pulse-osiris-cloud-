@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreRisk, findCoords, mergeCrossPosts, recentPosts, wirePost, sourceRef, type ChannelPost, type RssItem } from './route';
+import { scoreRisk, findCoords, summarizeNewsSources, mergeCrossPosts, recentPosts, wirePost, sourceRef, type ChannelPost, type RssItem } from './route';
 import type { TelegramPost } from '@/lib/telegram';
 
 describe('scoreRisk', () => {
@@ -168,5 +168,30 @@ describe('sourceRef', () => {
     expect(sourceRef({ handle: 'QudsNen', name: 'Quds News Network', lean: '', bloc: 'regional' })).toBe('t.me/QudsNen');
     expect(sourceRef({ handle: 'bbc', name: 'BBC World', lean: '', bloc: 'western' })).toBe('feeds.bbci.co.uk');
     expect(sourceRef({ handle: 'tass', name: 'TASS', lean: '', bloc: 'russian' })).toBe('tass.com');
+  });
+});
+
+describe('summarizeNewsSources', () => {
+  it('distinguishes healthy responses from articles in the 72h window', () => {
+    const totals = summarizeNewsSources([
+      { state: 'ok', count: 0 },
+      { state: 'ok', count: 3 },
+      { state: 'empty', count: 0 },
+      { state: 'blocked', count: 0 },
+      { state: 'degraded', count: 2 },
+      { state: 'error', count: 0 },
+      { state: 'unknown', count: 0 },
+    ]);
+    expect(totals).toEqual({
+      total: 7, reachable: 3, withReports: 2,
+      blocked: 1, failed: 1, degraded: 1, pending: 1,
+    });
+  });
+
+  it('returns zero metrics when no sources have loaded yet', () => {
+    expect(summarizeNewsSources([])).toEqual({
+      total: 0, reachable: 0, withReports: 0,
+      blocked: 0, failed: 0, degraded: 0, pending: 0,
+    });
   });
 });
