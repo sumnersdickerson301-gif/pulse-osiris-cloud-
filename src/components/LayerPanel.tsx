@@ -173,32 +173,14 @@ const LAYER_GROUPS: LayerGroupDef[] = [
  * button is invalid HTML — the browser reparents it, which breaks hydration and
  * silently drops the click handler on the inner control.
  */
-function ToggleSwitch({ active }: { active: boolean }) {
+function ToggleSwitch({ active, mobile = false }: { active: boolean; mobile?: boolean }) {
+  // The parent button owns click and keyboard behaviour; this is visual only.
   return (
     <span
-      role="presentation"
-      className="relative flex-shrink-0 block"
-      style={{ width: 28, height: 14 }}
+      aria-hidden="true"
+      className={`osiris-layer-switch ${active ? 'active' : ''} ${mobile ? 'is-mobile' : ''}`}
     >
-      <div
-        className="absolute inset-0 rounded-full transition-all duration-300"
-        style={{
-          background: active ? 'rgba(255,255,255,0.2)' : 'transparent',
-          border: active ? '1px solid rgba(255,255,255,0.35)' : '1px solid rgba(255,255,255,0.12)',
-          boxShadow: active ? '0 0 8px rgba(255,255,255,0.1)' : 'none',
-        }}
-      />
-      <motion.div
-        className="absolute top-[2px] rounded-full"
-        style={{
-          width: 10,
-          height: 10,
-          background: active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
-          boxShadow: active ? '0 0 6px rgba(255,255,255,0.4)' : 'none',
-        }}
-        animate={{ left: active ? 16 : 2 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-      />
+      <span className="osiris-layer-switch__thumb" />
     </span>
   );
 }
@@ -286,10 +268,10 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
   /* ── MOBILE ── */
   if (isMobile) {
     return (
-      <div className="flex flex-col gap-5 py-2">
+      <div className="osiris-mobile-layer-panel flex flex-col gap-5 py-2">
         {visibleGroups.map((group) => (
           <div key={group.label} className="flex flex-col gap-2">
-            <div className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/30 border-b border-white/[0.06] pb-1.5">
+            <div className="osiris-mobile-group-title text-[10px] font-mono tracking-[0.2em] uppercase border-b pb-1.5">
               {group.fullLabel}
             </div>
             <div className="flex flex-col gap-1">
@@ -303,16 +285,16 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     onClick={() => toggle(layer.key)}
                     aria-pressed={!!isLayerActive}
                     aria-label={layer.label}
-                    className={`relative w-full flex items-center gap-3 py-2 rounded-md text-left hover:bg-white/[0.04] transition-colors ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
+                    className={`osiris-mobile-layer-row relative w-full flex items-center gap-3 py-2 rounded-md text-left transition-all ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'is-dormant' : ''} ${isLayerActive ? 'is-on' : ''}`}
                   >
                     {layer.parent && <SubLayerStem />}
-                    <ToggleSwitch active={!!isLayerActive} />
-                    <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'text-white/80' : 'text-white/40'}`}>
+                    <ToggleSwitch active={!!isLayerActive} mobile />
+                    <span className={`osiris-mobile-layer-label text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors ${isLayerActive ? 'is-on' : ''}`}>
                       {layer.label}
-                      {(liveStatus?.[layer.key] ?? layer.description) && <span className={`block mt-0.5 text-[9px] normal-case tracking-normal ${liveStatus?.[layer.key] ? 'text-white/55' : 'text-white/35'}`}>{liveStatus?.[layer.key] ?? layer.description}</span>}
+                      {(liveStatus?.[layer.key] ?? layer.description) && <span className="osiris-mobile-layer-description block mt-1 text-[9px] normal-case tracking-normal">{liveStatus?.[layer.key] ?? layer.description}</span>}
                     </span>
                     {count !== null && (
-                      <span className="text-[10px] font-mono tabular-nums text-white/25">
+                      <span className="osiris-mobile-layer-count text-[10px] font-mono tabular-nums">
                         {count.toLocaleString()}
                       </span>
                     )}
@@ -330,13 +312,13 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
           <button
             onClick={() => setStudioOpen(o => !o)}
             aria-pressed={studioOpen}
-            className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+            className="osiris-mobile-tool-btn w-8 h-8 rounded-full flex items-center justify-center transition-all"
             style={{
               background: studioOpen ? 'var(--hover-accent)' : 'transparent',
               boxShadow: studioOpen ? '0 0 12px var(--gold-glow)' : 'none',
             }}
           >
-            <SlidersHorizontal className="w-4 h-4" style={{ color: studioOpen ? 'var(--gold-primary)' : 'rgba(255,255,255,0.25)' }} />
+            <SlidersHorizontal className="w-4 h-4" style={{ color: studioOpen ? '#FFD15A' : '#D8DEE9' }} />
           </button>
         </div>
         <AnimatePresence>
@@ -349,13 +331,13 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
             <span className="text-[10px] font-mono tracking-[0.2em] text-white/25 uppercase">Призрачный режим</span>
             <button
               onClick={() => setTheme(theme === 'core' ? 'ghost' : 'core')}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+              className="osiris-mobile-tool-btn w-8 h-8 rounded-full flex items-center justify-center transition-all"
               style={{
                 background: theme === 'ghost' ? 'rgba(179, 136, 255, 0.15)' : 'transparent',
                 boxShadow: theme === 'ghost' ? '0 0 12px rgba(179, 136, 255, 0.3)' : 'none',
               }}
             >
-              <Ghost className="w-4 h-4" style={{ color: theme === 'ghost' ? '#B388FF' : 'rgba(255,255,255,0.25)' }} />
+              <Ghost className="w-4 h-4" style={{ color: theme === 'ghost' ? '#C9A7FF' : '#D8DEE9' }} />
             </button>
           </div>
         )}
