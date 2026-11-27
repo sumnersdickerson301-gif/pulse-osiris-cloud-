@@ -46,7 +46,7 @@ async function readStatsJson(result: PromiseSettledResult<Response>, route: stri
   const response = result.value;
   if (!response.ok) return null;
   const mime = response.headers.get('content-type') ?? '';
-  if (mime && !/(?:application\\/json|\\+json)/i.test(mime)) {
+  if (mime && !mime.toLowerCase().includes('application/json') && !mime.toLowerCase().includes('+json')) {
     console.warn('[OSIRIS] stats ignored non-JSON response from /api/' + route + ' (' + mime.slice(0, 60) + ')');
     return null;
   }
