@@ -15,8 +15,8 @@ import {
 interface SourceHealth {
   handle: string; name: string; lean: string; bloc: Bloc;
   kind?: 'telegram' | 'wire'; count: number; latest: string | null;
-  state?: 'ok' | 'empty' | 'degraded' | 'error' | 'seeded' | 'unknown';
-  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null;
+  state?: 'ok' | 'empty' | 'degraded' | 'error' | 'blocked' | 'seeded' | 'unknown';
+  lastSuccessAt?: string | null; lastAttemptAt?: string | null; lastErrorAt?: string | null; nextRetryAt?: string | null;
 }
 
 /** The slice of dashboard state this panel reads. */
@@ -830,11 +830,12 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   const sources: SourceHealth[] = data.news_meta?.sources ?? [];
   // Reporting within the last 72h is not evidence that a source is reachable now.
   const sourcesWithReports = sources.filter(s => s.count > 0).length;
-  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error').length;
+  const brokenSources = sources.filter(s => s.state === 'degraded' || s.state === 'error' || s.state === 'blocked').length;
   const fetchedAt: string | null = data.news_meta?.fetchedAt ?? null;
   const fetchedAge = fetchedAt ? now - Date.parse(fetchedAt) : Number.POSITIVE_INFINITY;
   const feedDelayed = fetchedAge > 10 * 60_000;
   const sourceStatus = (source: SourceHealth) => {
+    if (source.state === 'blocked') return 'HTTP 403 · ДОСТУП ЗАПРЕЩЁН';
     if (source.state === 'degraded') return 'СБОЙ · ПОКАЗАН КЭШ';
     if (source.state === 'error') return 'ОШИБКА ЗАГРУЗКИ';
     if (source.state === 'empty') return 'ОТВЕТ БЕЗ ПУБЛИКАЦИЙ';
@@ -1210,9 +1211,10 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
                   <div className="text-white/45">
                     {source.count} публикаций · последняя: {source.latest ? timeAgo(source.latest, now) : 'нет данных'}
                     {source.lastSuccessAt && <span> · связь: {timeAgo(source.lastSuccessAt, now)}</span>}
+                    {source.nextRetryAt && <span> · повтор: {new Date(source.nextRetryAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                 </div>
-                <span className="shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' ? '#FFB454' : source.state === 'ok' ? '#8FE4B1' : '#A8ACB5' }}>{sourceStatus(source)}</span>
+                <span className="shrink-0 text-right" style={{ color: source.state === 'error' || source.state === 'degraded' || source.state === 'blocked' ? '#FFB454' : source.state === 'ok' ? '#8FE4B1' : '#A8ACB5' }}>{sourceStatus(source)}</span>
               </div>
             ))}
           </div>
