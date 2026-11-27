@@ -4,6 +4,7 @@ import { isOsintRelevant } from '@/lib/newsRelevance';
 import { cachedSource, sourceCacheHealth, type SourceCacheState } from '@/lib/sourceCache';
 import { fingerprint, htmlToText, parseChannelPage, splitHeadline, type TelegramPost } from '@/lib/telegram';
 import type { Bloc } from '@/lib/alert-digest';
+import { loadRailwayNews } from '@/lib/railway-news';
 import { alertKind, locateReport, type AlertKind, type AlertPlace } from '@/lib/alert-places';
 
 /**
@@ -361,8 +362,8 @@ async function placeItems(items: NewsItem[]): Promise<void> {
  * server. Built per request, a hundred dashboards polling would have
  * multiplied that by a hundred. Built once, they all read the same answer.
  */
-let feed: { at: number; body: FeedPayload } | null = null;
-let building: Promise<FeedPayload> | null = null;
+let feed: { at: number; body: FeedPayload; origin: 'railway' | 'local' } | null = null;
+let building: Promise<{ body: FeedPayload; origin: 'railway' | 'local' }> | null = null;
 const FEED_TTL_MS = 60_000;
 
 interface SourceHealth {
@@ -489,22 +490,37 @@ async function buildFeed(): Promise<FeedPayload> {
   }
 }
 
+/**
+ * Opt-in Railway news integration (Preview only by default). A failed remote
+ * request cannot replace a valid local feed with an empty/error response.
+ * x-osiris-news-origin allows same-origin diagnostics without altering the
+ * JSON contract consumed by the existing dashboard.
+ */
+async function buildNewsFromAvailableBackend(): Promise<{ body: FeedPayload; origin: 'railway' | 'local' }> {
+  const railway = await loadRailwayNews();
+  if (railway) return { body: railway as FeedPayload, origin: 'railway' };
+  return { body: await buildFeed(), origin: 'local' };
+}
+
 export async function GET() {
   try {
     const fresh = feed && Date.now() - feed.at < FEED_TTL_MS;
     if (!fresh) {
-      // One build at a time: concurrent readers wait for it rather than each
-      // starting their own and spending the place budget several times over.
-      building ??= buildFeed().finally(() => { building = null; });
-      const body = await building;
-      feed = { at: Date.now(), body };
+      building ??= buildNewsFromAvailableBackend().finally(() => { building = null; });
+      const result = await building;
+      feed = { at: Date.now(), ...result };
     }
     return NextResponse.json(feed!.body, {
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+        'X-Osiris-News-Origin': feed!.origin,
+      },
     });
   } catch {
     // A build that fails leaves the last good feed in place, if there is one.
-    if (feed) return NextResponse.json(feed.body, { headers: { 'Cache-Control': 'public, s-maxage=30' } });
+    if (feed) return NextResponse.json(feed.body, {
+      headers: { 'Cache-Control': 'public, s-maxage=30', 'X-Osiris-News-Origin': feed.origin },
+    });
     return NextResponse.json({ news: [], error: 'Failed to fetch intel' }, { status: 500 });
   }
 }
