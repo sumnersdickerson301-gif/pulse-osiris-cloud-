@@ -34,6 +34,46 @@ describe('progressive camera catalogue', () => {
     stop();
   });
 
+  it('recovers a missing camera region after the five-minute cooldown', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(json([{ id: 'london' }], ['canada']))
+      .mockResolvedValueOnce(json([], ['canada']))
+      .mockResolvedValueOnce(json([], ['canada']))
+      .mockResolvedValueOnce(json([{ id: 'ottawa' }]));
+    vi.stubGlobal('fetch', fetcher);
+    let cameras: { id: string | number }[] = [];
+    const stop = loadCameraCatalog(batch => {
+      cameras = mergeCameraCatalog(cameras, batch);
+    }, vi.fn());
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(cameras).toEqual([{ id: 'london' }]);
+
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher.mock.calls[3][0]).toBe('/api/cctv?region=canada');
+    expect(cameras).toEqual([{ id: 'london' }, { id: 'ottawa' }]);
+
+    // A complete catalogue must not keep polling every five minutes.
+    await vi.advanceTimersByTimeAsync(900_000);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    stop();
+  });
+
+  it('never silently accepts malformed camera records as valid', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      cameras: [{ invalid: true }, { id: 'valid' }],
+      pendingRegions: [],
+    }));
+    vi.stubGlobal('fetch', fetcher);
+    const onBatch = vi.fn();
+    const stop = loadCameraCatalog(onBatch, vi.fn());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onBatch).toHaveBeenCalledWith([{ id: 'valid' }]);
+    stop();
+  });
+
   it('cancels queued retries when cameras are switched off', async () => {
     const fetcher = vi.fn(async () => json([], ['canada']));
     vi.stubGlobal('fetch', fetcher);
