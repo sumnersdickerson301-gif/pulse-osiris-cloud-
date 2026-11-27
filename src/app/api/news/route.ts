@@ -368,13 +368,29 @@ interface SourceHealth {
   lastAttemptAt: string | null;
   lastErrorAt: string | null;
   nextRetryAt: string | null;
+  responseMs: number | null;
 }
 
 interface FeedPayload {
   news: NewsItem[];
   total: number;
   sources: SourceHealth[];
+  health: ReturnType<typeof summarizeNewsSources>;
   timestamp: string;
+}
+
+/** Counts actual source results, not the existence of recent articles. */
+export function summarizeNewsSources(sources: Array<{ state: SourceCacheState | 'unknown'; count: number }>) {
+  const count = (state: SourceCacheState | 'unknown') => sources.filter(source => source.state === state).length;
+  return {
+    total: sources.length,
+    reachable: count('ok') + count('empty'),
+    withReports: sources.filter(source => source.count > 0).length,
+    blocked: count('blocked'),
+    failed: count('error'),
+    degraded: count('degraded'),
+    pending: count('unknown') + count('seeded'),
+  };
 }
 
 async function buildFeed(): Promise<FeedPayload> {
@@ -408,6 +424,7 @@ async function buildFeed(): Promise<FeedPayload> {
       lastAttemptAt: iso(health?.lastAttemptAt),
       lastErrorAt: iso(health?.lastErrorAt),
       nextRetryAt: iso(health?.nextRetryAt),
+      responseMs: health?.lastDurationMs ?? null,
       };
     });
 
@@ -450,6 +467,7 @@ async function buildFeed(): Promise<FeedPayload> {
       news: newsItems,
       total: newsItems.length,
       sources,
+      health: summarizeNewsSources(sources),
       timestamp: new Date().toISOString(),
     };
   }
