@@ -19,6 +19,7 @@ describe('cachedSource', () => {
       lastErrorAt: null,
     });
     expect(sourceCacheHealth('t1')?.lastSuccessAt).toEqual(expect.any(Number));
+    expect(sourceCacheHealth('t1')?.lastDurationMs).toEqual(expect.any(Number));
   });
 
   it('refetches once the TTL has elapsed', async () => {
