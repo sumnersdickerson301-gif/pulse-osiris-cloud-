@@ -64,17 +64,24 @@ function countArray(record: Record<string, unknown> | null, key: string): number
   return (record[key] as unknown[]).length;
 }
 
-/** Counts for the feeds that answered; a feed that failed is simply absent. */
-async function computeStats(origin: string): Promise<Partial<Stats>> {
-  // Fetch all internal APIs in parallel (they have their own Cache-Control TTLs)
-  const [flightsRes, satsRes, cctvRes, weatherRes, infraRes, gdeltRes] = await Promise.allSettled([
-    fetch(`${origin}/api/flights`, { signal: AbortSignal.timeout(20000), next: { revalidate: 45 } }),
-    fetch(`${origin}/api/satellites`, { signal: AbortSignal.timeout(20000), next: { revalidate: 3600 } }),
-    fetch(`${origin}/api/cctv`, { signal: AbortSignal.timeout(20000), next: { revalidate: 3600 } }),
-    fetch(`${origin}/api/weather`, { signal: AbortSignal.timeout(20000), next: { revalidate: 300 } }),
-    fetch(`${origin}/api/infrastructure`, { signal: AbortSignal.timeout(20000), next: { revalidate: 86400 } }),
-    fetch(`${origin}/api/gdelt`, { signal: AbortSignal.timeout(20000), next: { revalidate: 300 } })
-  ]);
+/** Counts for the feeds that answered; a feed that failed is simply absent.
+ * Vercel SSO protects the project's own /api routes. Server-side fetch() has
+ * no browser cookie jar, so an unauthenticated self-fetch is redirected to the
+ * Vercel login HTML. Forward only the incoming SAME-ORIGIN session cookie.
+ * This does not bypass protection or send credentials to a third party.
+ */
+async function computeStats(origin: string, sessionCookie: string | null): Promise<Partial<Stats>> {
+  const headers: HeadersInit = { Accept: 'application/json' };
+  if (sessionCookie) headers.Cookie = sessionCookie;
+  const routes = ['flights', 'satellites', 'cctv', 'weather', 'infrastructure', 'gdelt'];
+  const results = await Promise.allSettled(routes.map(route =>
+    fetch(`${origin}/api/${route}`, {
+      signal: AbortSignal.timeout(20000),
+      cache: 'no-store',
+      headers,
+    })
+  ));
+  const [flightsRes, satsRes, cctvRes, weatherRes, infraRes, gdeltRes] = results;
 
   const fresh: Partial<Stats> = {};
 
@@ -111,8 +118,8 @@ async function computeStats(origin: string): Promise<Partial<Stats>> {
   return fresh;
 }
 
-function refresh(origin: string) {
-  inflight ??= computeStats(origin)
+function refresh(origin: string, sessionCookie: string | null) {
+  inflight ??= computeStats(origin, sessionCookie)
     .then(fresh => {
       /* A feed that failed keeps its last good count instead of dropping to
          zero, and a computation that reached nothing does not count as fresh.
@@ -143,7 +150,7 @@ function respond({ stats, timestamp }: Snapshot) {
 export async function GET(req: Request) {
   if (snapshot && Date.now() - snapshot.at < TTL_MS) return respond(snapshot);
 
-  const pending = refresh(new URL(req.url).origin);
+  const pending = refresh(new URL(req.url).origin, req.headers.get('cookie'));
   // Stale beats slow: answer now, and let the refresh land for the next caller.
   if (snapshot) {
     pending.catch(error => console.error('Stats refresh failed:', error));
