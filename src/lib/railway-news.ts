@@ -44,7 +44,8 @@ export function validRailwayNews(payload: unknown, now = Date.now()): payload is
   if (!Number.isFinite(time) || time < now - MAX_AGE_MS || time > now + 2 * 60_000) return false;
   if (!p.sources.every((s: unknown) => s && typeof s === 'object'
     && typeof (s as Record<string, unknown>).handle === 'string'
-    && typeof (s as Record<string, unknown>).state === 'string')) return false;
+    && typeof (s as Record<string, unknown>).state === 'string'
+    && typeof (s as Record<string, unknown>).count === 'number')) return false;
   if (!p.news.every((n: unknown) => {
     if (!n || typeof n !== 'object') return false;
     const item = n as Record<string, unknown>;
@@ -52,7 +53,12 @@ export function validRailwayNews(payload: unknown, now = Date.now()): payload is
       && typeof item.title === 'string'
       && typeof item.published === 'string'
       && Number.isFinite(Date.parse(item.published))
-      && typeof item.link === 'string';
+      && typeof item.link === 'string'
+      && typeof item.source === 'string'
+      && typeof item.source_name === 'string'
+      && typeof item.summary === 'string'
+      && typeof item.description === 'string'
+      && typeof item.risk_score === 'number';
   })) return false;
   // An empty response from all broken sources is not proof of a valid feed.
   if (p.news.length === 0 && !p.sources.some((s: Record<string, unknown>) =>
