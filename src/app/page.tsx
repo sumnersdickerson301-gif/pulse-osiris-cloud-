@@ -190,7 +190,6 @@ export default function Dashboard() {
   const [flyToLocation, setFlyToLocation] = useState<{ lat: number; lng: number; zoom?: number; alertId?: string; duration?: number; ts: number } | null>(null);
   /* The Live Alerts the feed's filters leave showing; the map pins those. */
   const [pinnedAlertIds, setPinnedAlertIds] = useState<string[] | null>(null);
-  const [globalStats, setGlobalStats] = useState<any>(null);
   const mouseCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const coordsDisplayRef = useRef<HTMLDivElement>(null);
   const [locationLabel, setLocationLabel] = useState('');
@@ -831,16 +830,6 @@ export default function Dashboard() {
       return Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, KEEP.has(k) ? v : false])) as typeof prev;
     });
     setOiFocus(true);
-  }, []);
-
-  // Global Stats Fetch
-  useEffect(() => {
-    fetch('/api/stats')
-      .then(res => res.json())
-      .then(d => {
-        if (d.stats) setGlobalStats(d.stats);
-      })
-      .catch(console.error);
   }, []);
 
   /** From Search: open Directions with this place as the destination, and show where it is. */
