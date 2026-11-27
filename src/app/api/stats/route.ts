@@ -71,7 +71,7 @@ function countArray(record: Record<string, unknown> | null, key: string): number
  * This does not bypass protection or send credentials to a third party.
  */
 async function computeStats(origin: string, sessionCookie: string | null): Promise<Partial<Stats>> {
-  const headers: HeadersInit = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: 'application/json' };
   if (sessionCookie) headers.Cookie = sessionCookie;
   const routes = ['flights', 'satellites', 'cctv', 'weather', 'infrastructure', 'gdelt'];
   const results = await Promise.allSettled(routes.map(route =>
