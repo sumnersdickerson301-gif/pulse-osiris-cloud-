@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { isOsintRelevant } from '@/lib/newsRelevance';
 import { cachedSource, sourceCacheHealth, type SourceCacheState } from '@/lib/sourceCache';
 import { fingerprint, htmlToText, parseChannelPage, splitHeadline, type TelegramPost } from '@/lib/telegram';
 import type { Bloc } from '@/lib/alert-digest';
@@ -232,7 +233,11 @@ const wireFeeds = WIRE_FEEDS.map(feed => ({
       headers: { 'User-Agent': BROWSER_UA, Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8' },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const items = parseRSSItems(await res.text(), feed.name).slice(0, ITEMS_PER_WIRE);
+    // Filter the newsroom's general RSS BEFORE the item limit. Otherwise
+    // lifestyle/sports headlines can crowd out the incident coverage.
+    const items = parseRSSItems(await res.text(), feed.name)
+      .filter(item => isOsintRelevant(item.title, item.description))
+      .slice(0, ITEMS_PER_WIRE);
     // Oldest first, as a channel page arrives, so recentPosts takes the newest.
     return items
       .map(item => wirePost(item, feed))
